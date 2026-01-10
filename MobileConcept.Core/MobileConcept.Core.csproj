@@ -1,0 +1,58 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <SingleProject>true</SingleProject>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IsAotCompatible>true</IsAotCompatible>
+        <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
+        
+        <!-- Métadonnées NuGet -->
+        <Title>MobileConcept.Core</Title>
+        <PackageId>MobileConcept.Core</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>Paulin Laroche</Authors>
+        <Company>Mobile Concept</Company>
+        <Description>MobileConcept.Maui.Core provides essential utilities, base classes, and extension methods for .NET MAUI development. Includes common helpers for Android and iOS platforms, MVVM base classes, and reusable components to accelerate your mobile app development.</Description>
+        <PackageTags>maui, dotnet, mobile, android, ios, core, utilities, cross-platform</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <Copyright>© Mobile Concept. All rights reserved.</Copyright>
+        <PackageProjectUrl>https://github.com/votre-repo</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/votre-repo.git</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        
+        <Product>MobileConcept.Core ($(NetVersion))</Product>
+
+        <Product>$(AssemblyName) ($(TargetFramework))</Product>
+        <PackageVersion>$(Version)$(VersionSuffix)</PackageVersion>
+        <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+
+        <!-- Génération automatique du package -->
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+
+        <!-- Optionnel mais recommandé -->
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageIcon>icon.png</PackageIcon>
+       
+        <NeutralLanguage>en</NeutralLanguage>
+
+        <Configurations>Debug;Release</Configurations>
+    </PropertyGroup>
+
+    <!-- Si vous utilisez un README ou une icône -->
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+        <None Include="icon.png" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="SkiaSharp" Version="3.119.1" />
+    </ItemGroup>
+
+</Project>
