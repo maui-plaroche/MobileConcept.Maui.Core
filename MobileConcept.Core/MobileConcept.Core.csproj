@@ -16,7 +16,7 @@
         <!-- Métadonnées NuGet -->
         <Title>MobileConcept.Core</Title>
         <PackageId>MobileConcept.Core</PackageId>
-        <Version>1.0.0</Version>
+        <Version>1.0.1</Version>
         <Authors>Paulin Laroche</Authors>
         <Company>Mobile Concept</Company>
         <Description>MobileConcept.Maui.Core provides essential utilities, base classes, and extension methods for .NET MAUI development. Includes common helpers for Android and iOS platforms, MVVM base classes, and reusable components to accelerate your mobile app development.</Description>
