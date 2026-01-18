@@ -7,7 +7,7 @@ namespace MobileConcept.Core.Images.Helpers;
 /// </summary>
 public static class ImageRotationHelper
 {
-        /// <summary>
+    /// <summary>
     /// Resizes an image to exact dimensions with EXIF rotation handling.
     /// Use for profile images (crops to target size).
     /// </summary>
@@ -19,7 +19,8 @@ public static class ImageRotationHelper
         var origin = codec.EncodedOrigin;
         using var bitmap = SKBitmap.Decode(codec);
         using var rotatedBitmap = ApplyExifOrientation(bitmap, origin);
-        using var resizedBitmap = rotatedBitmap.Resize(new SKImageInfo(targetWidth, targetHeight), SKFilterQuality.High);
+        using var resizedBitmap =
+            rotatedBitmap.Resize(new SKImageInfo(targetWidth, targetHeight), SKFilterQuality.High);
 
         using var image = SKImage.FromBitmap(resizedBitmap);
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, quality);
@@ -35,7 +36,8 @@ public static class ImageRotationHelper
     /// Resizes an image proportionally within max bounds with EXIF rotation handling.
     /// Use for pin images (maintains aspect ratio).
     /// </summary>
-    public static Stream ResizeProportionalWithExifRotation(Stream inputStream, int maxWidth = 1200, int maxHeight = 1200, int quality = 90)
+    public static Stream ResizeProportionalWithExifRotation(Stream inputStream, int maxWidth = 1200,
+        int maxHeight = 1200, int quality = 90)
     {
         using var inputSkiaStream = new SKManagedStream(inputStream);
         using var codec = SKCodec.Create(inputSkiaStream);
@@ -92,7 +94,7 @@ public static class ImageRotationHelper
 
         return outputStream;
     }
-    
+
     private static Stream ResizeImage(Stream inputStream, int targetWidth, int targetHeight)
     {
         using var inputSkiaStream = new SKManagedStream(inputStream);
