@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using SkiaSharp;
 
 namespace MobileConcept.Core.Images.Helpers;

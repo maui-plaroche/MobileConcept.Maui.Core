@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Controls;
 using MobileConcept.Core.ViewModels;
@@ -13,6 +15,14 @@ public class BaseContentPage<T> : ContentPage, IBaseContentPage, IQueryAttributa
     where T : class, IViewModelBase
 {
     /// <summary>
+    /// Gets or sets a value indicating whether lifecycle events are enabled for the page.
+    /// This property controls whether the lifecycle methods such as <c>OnAppStartAsync</c>,
+    /// <c>OnAppResumeAsync</c>, and <c>OnAppSleepAsync</c> are invoked during the respective
+    /// application lifecycle transitions.
+    /// </summary>
+    public bool EnableLifecycleEvents { get; set; } = true;
+    
+    /// <summary>
     /// Gets the strongly-typed ViewModel.
     /// </summary>
     private T ViewModel => (T)BindingContext;
@@ -24,31 +34,7 @@ public class BaseContentPage<T> : ContentPage, IBaseContentPage, IQueryAttributa
     {
         BindingContext = viewModel;
     }
-
-    /// <summary>
-    /// Called when the application starts. Override to add custom logic.
-    /// </summary>
-    public virtual async Task OnAppStartAsync()
-    {
-        await ViewModel.OnAppStartAsync();
-    }
-
-    /// <summary>
-    /// Called when the application resumes. Override to add custom logic.
-    /// </summary>
-    public virtual async Task OnAppResumeAsync()
-    {
-        await ViewModel.OnAppResumeAsync();
-    }
-
-    /// <summary>
-    /// Called when the application goes to sleep. Override to add custom logic.
-    /// </summary>
-    public virtual async Task OnAppSleepAsync()
-    {
-        await ViewModel.OnAppSleepAsync();
-    }
-
+    
     /// <summary>
     /// Applies navigation query attributes. Override to handle parameters.
     /// </summary>
@@ -66,6 +52,45 @@ public class BaseContentPage<T> : ContentPage, IBaseContentPage, IQueryAttributa
     {
         base.OnDisappearing();
         await ViewModel.OnDisappearingAsync();
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    public Task OnAppStartAsync()
+    {
+        if (EnableLifecycleEvents)
+        {
+            return ViewModel.OnAppStartAsync();
+        }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    public Task OnAppEnterForegroundAsync()
+    {
+        if (EnableLifecycleEvents)
+        {
+            return ViewModel.OnAppEnterForegroundAsync();
+        }
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    public Task OnAppEnterBackgroundAsync()
+    {
+        if (EnableLifecycleEvents)
+        {
+            return ViewModel.OnAppEnterBackgroundAsync();
+        }
+        return Task.CompletedTask;
     }
 }
 

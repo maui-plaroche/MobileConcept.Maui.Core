@@ -1,19 +1,19 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>net9.0;net10.0</TargetFrameworks>
+        <TargetFrameworks>net10.0-android;net10.0-ios</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <SingleProject>true</SingleProject>
+        <UseMaui>true</UseMaui>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <IsAotCompatible>true</IsAotCompatible>
-        <AllowMissingPrunePackageData>true</AllowMissingPrunePackageData>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         
         <!-- Métadonnées NuGet -->
         <Title>MobileConcept.Core</Title>
         <PackageId>MobileConcept.Core</PackageId>
-        <Version>1.0.3</Version>
+        <Version>1.0.4</Version>
         <Authors>Paulin Laroche</Authors>
         <Company>Mobile Concept</Company>
         <Description>MobileConcept.Maui.Core provides essential utilities, base classes, and extension methods for .NET MAUI development. Includes common helpers for Android and iOS platforms, MVVM base classes, and reusable components to accelerate your mobile app development.</Description>
@@ -23,8 +23,6 @@
         <PackageProjectUrl>https://github.com/maui-plaroche/MobileConcept.Maui.Core</PackageProjectUrl>
         <RepositoryUrl>https://github.com/maui-plaroche/MobileConcept.Maui.Core.git</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
-        
-        <Product>MobileConcept.Core ($(NetVersion))</Product>
 
         <Product>$(AssemblyName) ($(TargetFramework))</Product>
         <PackageVersion>$(Version)$(VersionSuffix)</PackageVersion>
@@ -40,6 +38,13 @@
         <NeutralLanguage>en</NeutralLanguage>
 
         <Configurations>Debug;Release</Configurations>
+        
+        <!-- Support des RIDs multiples -->
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23.0</SupportedOSPlatformVersion>
+
+        <!-- Disable runtime pack resolution for cross-compilation -->
+        <DisableRuntimeFrameworkPackageDuplication>true</DisableRuntimeFrameworkPackageDuplication>
     </PropertyGroup>
 
     <!-- Si vous utilisez un README ou une icône -->
@@ -49,8 +54,9 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
-        <PackageReference Include="Microsoft.Maui.Controls.Core" Version="10.0.1" />
+        <PackageReference Include="Microsoft.Maui.Controls" Version="10.0.1" />
         <PackageReference Include="SkiaSharp" Version="3.119.1" />
     </ItemGroup>
 

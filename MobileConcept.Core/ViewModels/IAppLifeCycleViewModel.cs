@@ -1,3 +1,5 @@
+using System.Threading.Tasks;
+
 namespace MobileConcept.Core.ViewModels;
 
 /// <summary>
@@ -14,10 +16,10 @@ public interface IAppLifeCycleViewModel
     /// 
     /// </summary>
     /// <returns></returns>
-    Task OnAppResumeAsync();
+    Task OnAppEnterForegroundAsync();
     /// <summary>
     /// 
     /// </summary>
     /// <returns></returns>
-    Task OnAppSleepAsync();
+    Task OnAppEnterBackgroundAsync();
 }
