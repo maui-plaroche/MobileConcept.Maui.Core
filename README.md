@@ -27,8 +27,8 @@ Install-Package MobileConcept.Maui.Core
 
 ## Requirements
 
-- .NET 9.0 or later
-- .NET MAUI 9.0 or later
+- .NET 10.0 or later
+- .NET MAUI 10.0 or later
 
 ---
 
