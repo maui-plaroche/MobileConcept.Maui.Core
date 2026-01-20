@@ -19,7 +19,7 @@ public class NavigationService : INavigationService
     public bool IsStackNavigation => MainPage is NavigationPage || 
                                      (MainPage is not Shell && MainPage is ContentPage);
 
-    public async Task NavigateToAsync<TPage>() where TPage : Page
+    public async Task NavigateToAsync<TPage>(bool animated= true) where TPage : Page
     {
         Debug.WriteLine("=== NavigateToAsync WITHOUT params ===");
 
@@ -31,7 +31,7 @@ public class NavigationService : INavigationService
             var page = services?.GetRequiredService<TPage>();
             if (page != null)
             {
-                await navPage.Navigation.PushAsync(page);
+                await navPage.Navigation.PushAsync(page, animated: animated);
             }
         }
         else if (mainPage is Shell shell)
@@ -56,7 +56,7 @@ public class NavigationService : INavigationService
             var page = services?.GetRequiredService<TPage>();
             if (page != null)
             {
-                await shell.Navigation.PushAsync(page, true);
+                await shell.Navigation.PushAsync(page, animated:animated);
             }
         }
         else
@@ -65,7 +65,17 @@ public class NavigationService : INavigationService
         }
     }
 
-    public async Task NavigateToAsync<TPage>(params object[] args) where TPage : Page
+    public Task NavigateToAsync<TPage>() where TPage : Page
+    {
+        return NavigateToAsync<TPage>(true, Array.Empty<object>());
+    }
+    
+    public Task NavigateToAsync<TPage>(params object[] args) where TPage : Page
+    {
+        return NavigateToAsync<TPage>(true, args);
+    }
+    
+    public async Task NavigateToAsync<TPage>(bool animated = true, params object[] args) where TPage : Page
     {
         Debug.WriteLine($"=== NavigateToAsync WITH params: {args.Length} ===");
         
@@ -81,7 +91,7 @@ public class NavigationService : INavigationService
                 {
                     await vm.InitializeAsync(args);
                 }
-                await navPage.Navigation.PushAsync(page);
+                await navPage.Navigation.PushAsync(page, animated: animated);
             }
         }
         else if (mainPage is Shell shell)
@@ -112,7 +122,7 @@ public class NavigationService : INavigationService
                     await vm.InitializeAsync(args);
                 }
         
-                await shell.Navigation.PushAsync(page, true);
+                await shell.Navigation.PushAsync(page, animated: animated);
             }
         }
         else
@@ -211,5 +221,25 @@ public class NavigationService : INavigationService
             FlyoutPage flyoutPage => GetCurrentPageFromFlyout(flyoutPage),
             _ => null
         };
+    }
+    
+    public async Task GoBackAsync(bool animated = true)
+    {
+        var mainPage = PlatformHelper.GetMainPage();
+    
+        if (mainPage is NavigationPage navPage)
+        {
+            if (navPage.Navigation.NavigationStack.Count > 1)
+            {
+                await navPage.Navigation.PopAsync(true);
+            }
+        }
+        else if (mainPage is Shell shell)
+        {
+            if (shell.Navigation.NavigationStack.Count > 1)
+            {
+                 await shell.GoToAsync("..", animated);
+            }
+        }
     }
 }

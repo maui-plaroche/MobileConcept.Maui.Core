@@ -28,8 +28,11 @@ public interface INavigationService
     /// </summary>
     bool IsStackNavigation { get; }
     
-    Task NavigateToAsync<TPage>() where TPage : Page;
+    Task NavigateToAsync<TPage>(bool animated = true) where TPage : Page;
     
     Task NavigateToAsync<TPage>(params object[] args) where TPage : Page;
 
+    Task NavigateToAsync<TPage>(bool animated, params object[] args) where TPage : Page;
+
+    Task GoBackAsync(bool animated = true);
 }
