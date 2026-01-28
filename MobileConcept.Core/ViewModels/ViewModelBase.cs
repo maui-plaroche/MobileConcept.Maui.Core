@@ -1,3 +1,4 @@
+
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -11,13 +12,20 @@ public abstract class ViewModelBase : ObservableObject, IViewModelBase
     /// <summary>
     /// Called when the page appears. Override to refresh data.
     /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public virtual Task OnAppearingAsync() => Task.CompletedTask;
 
     /// <summary>
     /// Called when the page disappears. Override to cleanup resources.
     /// </summary>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public virtual Task OnDisappearingAsync() => Task.CompletedTask;
 
+    /// <summary>
+    /// Called after navigation to initialize the ViewModel with passed parameters.
+    /// </summary>
+    /// <param name="args">The navigation parameters passed to this ViewModel.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
     public virtual Task InitializeAsync(params object[] args) => Task.CompletedTask;
 
     /// <summary>

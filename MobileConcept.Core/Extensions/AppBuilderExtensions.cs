@@ -11,15 +11,17 @@ using MobileConcept.Core.Views;
 namespace MobileConcept.Core.Extensions;
 
 /// <summary>
-/// 
+/// Extension methods for configuring MobileConcept features in a MAUI application.
 /// </summary>
 public static class AppBuilderExtensions
 {
     /// <summary>
-    /// 
+    /// Configures MobileConcept services and lifecycle event handling for the MAUI application.
+    /// Registers core services like <see cref="INavigationService"/> and sets up platform-specific
+    /// lifecycle events for Android and iOS to forward app foreground/background transitions to ViewModels.
     /// </summary>
-    /// <param name="builder"></param>
-    /// <returns></returns>
+    /// <param name="builder">The MAUI app builder to configure.</param>
+    /// <returns>The configured <see cref="MauiAppBuilder"/> for method chaining.</returns>
     public static MauiAppBuilder UseMobileConcept(this MauiAppBuilder builder)
     {
         // -- DI

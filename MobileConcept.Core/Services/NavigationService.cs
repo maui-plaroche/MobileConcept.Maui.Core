@@ -1,32 +1,38 @@
+
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using Microsoft.Maui.Controls;
 using MobileConcept.Core.Helpers;
 using MobileConcept.Core.ViewModels;
-using Application = Microsoft.Maui.Controls.Application;
 
 namespace MobileConcept.Core.Services;
 
+/// <summary>
+/// Provides navigation services for MAUI applications supporting both Shell and NavigationPage patterns.
+/// </summary>
 public class NavigationService : INavigationService
 {
     private static readonly ConcurrentDictionary<string, byte> RegisteredRoutes = new();
 
     private Page? MainPage => PlatformHelper.GetMainPage();
 
+    /// <inheritdoc/>
     public bool IsShellNavigation => MainPage is Shell;
 
+    /// <inheritdoc/>
     public bool IsStackNavigation => MainPage is NavigationPage || 
                                      (MainPage is not Shell && MainPage is ContentPage);
 
-    public async Task NavigateToAsync<TPage>(bool animated= true) where TPage : Page
+    /// <inheritdoc/>
+    public async Task NavigateToAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TPage>(bool animated = true) where TPage : Page
     {
         Debug.WriteLine("=== NavigateToAsync WITHOUT params ===");
 
         var mainPage = PlatformHelper.GetMainPage();
         if (mainPage is NavigationPage navPage)
         {
-            // NavigationPage : on doit créer la page manuellement
             var services = PlatformHelper.GetServices();
             var page = services?.GetRequiredService<TPage>();
             if (page != null)
@@ -36,7 +42,7 @@ public class NavigationService : INavigationService
         }
         else if (mainPage is Shell shell)
         {
-            // -- Register routes for deep links / future navigation
+            // Register routes for deep links / future navigation
             var route = typeof(TPage).Name;
             if (RegisteredRoutes.TryAdd(route, 1))
             {
@@ -51,12 +57,11 @@ public class NavigationService : INavigationService
                 }
             }
 
-            // -- Create Page/ ViewModel via DI
             var services = PlatformHelper.GetServices();
             var page = services?.GetRequiredService<TPage>();
             if (page != null)
             {
-                await shell.Navigation.PushAsync(page, animated:animated);
+                await shell.Navigation.PushAsync(page, animated: animated);
             }
         }
         else
@@ -65,24 +70,26 @@ public class NavigationService : INavigationService
         }
     }
 
-    public Task NavigateToAsync<TPage>() where TPage : Page
+    /// <inheritdoc/>
+    public Task NavigateToAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TPage>() where TPage : Page
     {
         return NavigateToAsync<TPage>(true, Array.Empty<object>());
     }
-    
-    public Task NavigateToAsync<TPage>(params object[] args) where TPage : Page
+
+    /// <inheritdoc/>
+    public Task NavigateToAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TPage>(params object[] args) where TPage : Page
     {
         return NavigateToAsync<TPage>(true, args);
     }
-    
-    public async Task NavigateToAsync<TPage>(bool animated = true, params object[] args) where TPage : Page
+
+    /// <inheritdoc/>
+    public async Task NavigateToAsync<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TPage>(bool animated = true, params object[] args) where TPage : Page
     {
         Debug.WriteLine($"=== NavigateToAsync WITH params: {args.Length} ===");
         
         var mainPage = PlatformHelper.GetMainPage();
         if (mainPage is NavigationPage navPage)
         {
-            // -- NavigationPage : Create Page/ ViewModel via DI
             var services = PlatformHelper.GetServices();
             var page = services?.GetRequiredService<TPage>();
             if (page != null)
@@ -96,7 +103,7 @@ public class NavigationService : INavigationService
         }
         else if (mainPage is Shell shell)
         {
-            // -- Register routes for deep links / future navigation
+            // Register routes for deep links / future navigation
             var route = typeof(TPage).Name;
             if (RegisteredRoutes.TryAdd(route, 1))
             {
@@ -112,7 +119,6 @@ public class NavigationService : INavigationService
                 }
             }
          
-            // -- Create Page/ ViewModel via DI
             var services = PlatformHelper.GetServices();
             var page = services?.GetRequiredService<TPage>();
             if (page != null)
@@ -131,41 +137,36 @@ public class NavigationService : INavigationService
         }
     }
 
+    /// <inheritdoc/>
     public ContentPage? GetCurrentPage()
     {
         return MainPage switch
         {
-            // Shell navigation
             Shell shell => GetCurrentPageFromShell(shell),
-            
-            // NavigationPage stack
             NavigationPage navigationPage => GetCurrentPageFromNavigationPage(navigationPage),
-            
-            // FlyoutPage / MasterDetailPage
             FlyoutPage flyoutPage => GetCurrentPageFromFlyout(flyoutPage),
-            
-            // TabbedPage
             TabbedPage tabbedPage => GetCurrentPageFromTabbedPage(tabbedPage),
-            
-            // Direct ContentPage as MainPage
             ContentPage contentPage => contentPage,
-            
             _ => null
         };
     }
 
+    /// <inheritdoc/>
     public T? GetCurrentPage<T>() where T : ContentPage
     {
         return GetCurrentPage() as T;
     }
 
+    /// <summary>
+    /// Retrieves the current content page from a Shell navigation container.
+    /// </summary>
+    /// <param name="shell">The Shell instance to examine.</param>
+    /// <returns>The current <see cref="ContentPage"/>, or null if not found.</returns>
     private static ContentPage? GetCurrentPageFromShell(Shell shell)
     {
-        // Shell.CurrentPage is the most reliable way
         if (shell.CurrentPage is ContentPage shellCurrentPage)
             return shellCurrentPage;
 
-        // Fallback: check navigation stack for modals or pushed pages
         var navigationStack = shell.Navigation?.NavigationStack;
         if (navigationStack?.Count > 0)
         {
@@ -174,7 +175,6 @@ public class NavigationService : INavigationService
                 return stackPage;
         }
 
-        // Check modal stack
         var modalStack = shell.Navigation?.ModalStack;
         if (modalStack?.Count > 0)
         {
@@ -185,9 +185,13 @@ public class NavigationService : INavigationService
         return null;
     }
 
+    /// <summary>
+    /// Retrieves the current content page from a NavigationPage container.
+    /// </summary>
+    /// <param name="navigationPage">The NavigationPage instance to examine.</param>
+    /// <returns>The current <see cref="ContentPage"/>, or null if not found.</returns>
     private static ContentPage? GetCurrentPageFromNavigationPage(NavigationPage navigationPage)
     {
-        // Check modal stack first (modals are on top)
         var modalStack = navigationPage.Navigation?.ModalStack;
         if (modalStack?.Count > 0)
         {
@@ -195,22 +199,36 @@ public class NavigationService : INavigationService
             return GetContentPageFromPage(modalPage);
         }
 
-        // Then check navigation stack
         return navigationPage.CurrentPage as ContentPage;
     }
 
+    /// <summary>
+    /// Retrieves the current content page from a FlyoutPage container.
+    /// </summary>
+    /// <param name="flyoutPage">The FlyoutPage instance to examine.</param>
+    /// <returns>The current <see cref="ContentPage"/>, or null if not found.</returns>
     private static ContentPage? GetCurrentPageFromFlyout(FlyoutPage flyoutPage)
     {
         var detail = flyoutPage.Detail;
         return GetContentPageFromPage(detail);
     }
 
+    /// <summary>
+    /// Retrieves the current content page from a TabbedPage container.
+    /// </summary>
+    /// <param name="tabbedPage">The TabbedPage instance to examine.</param>
+    /// <returns>The current <see cref="ContentPage"/>, or null if not found.</returns>
     private static ContentPage? GetCurrentPageFromTabbedPage(TabbedPage tabbedPage)
     {
         var currentTab = tabbedPage.CurrentPage;
         return GetContentPageFromPage(currentTab);
     }
 
+    /// <summary>
+    /// Extracts a ContentPage from various page types by recursively checking the page hierarchy.
+    /// </summary>
+    /// <param name="page">The page to examine.</param>
+    /// <returns>The <see cref="ContentPage"/> found in the hierarchy, or null if not found.</returns>
     private static ContentPage? GetContentPageFromPage(Page? page)
     {
         return page switch
@@ -222,7 +240,8 @@ public class NavigationService : INavigationService
             _ => null
         };
     }
-    
+
+    /// <inheritdoc/>
     public async Task GoBackAsync(bool animated = true)
     {
         var mainPage = PlatformHelper.GetMainPage();
@@ -231,14 +250,14 @@ public class NavigationService : INavigationService
         {
             if (navPage.Navigation.NavigationStack.Count > 1)
             {
-                await navPage.Navigation.PopAsync(true);
+                await navPage.Navigation.PopAsync(animated);
             }
         }
         else if (mainPage is Shell shell)
         {
             if (shell.Navigation.NavigationStack.Count > 1)
             {
-                 await shell.GoToAsync("..", animated);
+                await shell.GoToAsync("..", animated);
             }
         }
     }

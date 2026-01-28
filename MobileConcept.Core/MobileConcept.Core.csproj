@@ -13,7 +13,7 @@
         <!-- Métadonnées NuGet -->
         <Title>MobileConcept.Core</Title>
         <PackageId>MobileConcept.Core</PackageId>
-        <Version>1.0.5</Version>
+        <Version>1.0.6</Version>
         <Authors>Paulin Laroche</Authors>
         <Company>Mobile Concept</Company>
         <Description>MobileConcept.Maui.Core provides essential utilities, base classes, and extension methods for .NET MAUI development. Includes common helpers for Android and iOS platforms, MVVM base classes, and reusable components to accelerate your mobile app development.</Description>
@@ -29,7 +29,7 @@
         <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
 
         <!-- Génération automatique du package -->
-        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 
         <!-- Optionnel mais recommandé -->
         <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -43,8 +43,9 @@
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
         <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23.0</SupportedOSPlatformVersion>
 
-        <!-- Disable runtime pack resolution for cross-compilation -->
-        <DisableRuntimeFrameworkPackageDuplication>true</DisableRuntimeFrameworkPackageDuplication>
+        <!-- Fix for NuGet pack with multi-targeting -->
+        <NoBuild>false</NoBuild>
+        <IncludeBuildOutput>true</IncludeBuildOutput>
     </PropertyGroup>
 
     <!-- Si vous utilisez un README ou une icône -->

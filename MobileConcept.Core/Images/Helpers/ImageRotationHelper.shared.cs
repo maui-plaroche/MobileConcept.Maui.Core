@@ -22,7 +22,7 @@ public static class ImageRotationHelper
         using var bitmap = SKBitmap.Decode(codec);
         using var rotatedBitmap = ApplyExifOrientation(bitmap, origin);
         using var resizedBitmap =
-            rotatedBitmap.Resize(new SKImageInfo(targetWidth, targetHeight), SKFilterQuality.High);
+            rotatedBitmap.Resize(new SKImageInfo(targetWidth, targetHeight), SKSamplingOptions.Default);
 
         using var image = SKImage.FromBitmap(resizedBitmap);
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, quality);
@@ -81,7 +81,7 @@ public static class ImageRotationHelper
         }
         else
         {
-            finalBitmap = rotatedBitmap.Resize(new SKImageInfo(newWidth, newHeight), SKFilterQuality.High);
+            finalBitmap = rotatedBitmap.Resize(new SKImageInfo(newWidth, newHeight), SKSamplingOptions.Default);
         }
 
         using var image = SKImage.FromBitmap(finalBitmap);
@@ -111,7 +111,7 @@ public static class ImageRotationHelper
 
         // Resize after rotation
         using var resizedBitmap =
-            rotatedBitmap.Resize(new SKImageInfo(targetWidth, targetHeight), SKFilterQuality.High);
+            rotatedBitmap.Resize(new SKImageInfo(targetWidth, targetHeight), SKSamplingOptions.Default);
 
         using var image = SKImage.FromBitmap(resizedBitmap);
         using var data = image.Encode(SKEncodedImageFormat.Jpeg, 90);
