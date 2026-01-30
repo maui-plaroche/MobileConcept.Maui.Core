@@ -5,7 +5,7 @@ using System.Collections.Concurrent;
 
 /// <summary>
 /// TaskPool class that helps you execute async tasks in a pool with limited concurrency.
-/// Supports optional base tasks that run before each task and completion callbacks.
+/// Supports completion callbacks for task lifecycle management.
 /// </summary>
 public class TaskPool : IDisposable
 {
@@ -21,11 +21,6 @@ public class TaskPool : IDisposable
     /// </summary>
     public int ThreadsMaxCount { get; }
 
-    /// <summary>
-    /// Gets or sets an optional base task that executes before each queued task.
-    /// </summary>
-    public Func<Task>? BaseTask { get; set; }
-
     private interface IInternalTask
     {
         /// <summary>
@@ -33,7 +28,7 @@ public class TaskPool : IDisposable
         /// </summary>
         Action? OnComplete { get; set; }
 
-        Task ExecuteAsync(Func<Task>? baseTask, CancellationToken cancellationToken);
+        Task ExecuteAsync(CancellationToken cancellationToken);
     }
 
     private sealed class InternalTaskHolder : IInternalTask
@@ -42,7 +37,7 @@ public class TaskPool : IDisposable
         public required TaskCompletionSource<object?> Waiter { get; init; }
         public Action? OnComplete { get; set; }
 
-        public async Task ExecuteAsync(Func<Task>? baseTask, CancellationToken cancellationToken)
+        public async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             try
             {
@@ -50,12 +45,6 @@ public class TaskPool : IDisposable
                 {
                     Waiter.SetCanceled(cancellationToken);
                     return;
-                }
-
-                // Execute base task if provided
-                if (baseTask != null)
-                {
-                    await baseTask();
                 }
 
                 await Task();
@@ -83,7 +72,7 @@ public class TaskPool : IDisposable
         public required TaskCompletionSource<T> Waiter { get; init; }
         public Action? OnComplete { get; set; }
 
-        public async Task ExecuteAsync(Func<Task>? baseTask, CancellationToken cancellationToken)
+        public async Task ExecuteAsync(CancellationToken cancellationToken)
         {
             try
             {
@@ -91,12 +80,6 @@ public class TaskPool : IDisposable
                 {
                     Waiter.SetCanceled(cancellationToken);
                     return;
-                }
-
-                // Execute base task if provided
-                if (baseTask != null)
-                {
-                    await baseTask();
                 }
 
                 var result = await Task();
@@ -135,17 +118,6 @@ public class TaskPool : IDisposable
 
         ThreadsMaxCount = threadsMaxCount;
         _semaphore = new SemaphoreSlim(threadsMaxCount, threadsMaxCount);
-    }
-
-    /// <summary>
-    /// Initializes a new instance of the <see cref="TaskPool"/> class with a base task.
-    /// </summary>
-    /// <param name="threadsMaxCount">The maximum number of concurrent tasks.</param>
-    /// <param name="baseTask">The base task to execute before each queued task.</param>
-    public TaskPool(int threadsMaxCount, Func<Task> baseTask)
-        : this(threadsMaxCount)
-    {
-        BaseTask = baseTask;
     }
 
     /// <summary>
@@ -281,7 +253,7 @@ public class TaskPool : IDisposable
     {
         try
         {
-            await task.ExecuteAsync(BaseTask, _disposalTokenSource.Token);
+            await task.ExecuteAsync(_disposalTokenSource.Token);
         }
         catch (Exception ex)
         {
@@ -360,19 +332,15 @@ public class TaskPool : IDisposable
 /*
 Usage Example:
 
-// Create a TaskPool with a base task that runs before each task
-using var taskPool = new TaskPool(8, async () =>
-{
-    Console.WriteLine("Base task executing (e.g., authentication check)");
-    await Task.Delay(100);
-});
+// Create a TaskPool
+using var taskPool = new TaskPool(8);
 
 var waitingTasks = new List<Task<string>>();
 
 for (int i = 0; i < 10; i++)
 {
     int taskId = i;
-    
+
     // Option 1: Simple completion callback
     var task = taskPool.EnqueueAsync(async () =>
     {
@@ -393,24 +361,6 @@ for (int i = 0; i < 10; i++)
 
 await taskPool.WaitForCompletionAsync();
 Console.WriteLine("All tasks completed!");
-
-// With base task and completion callbacks
-   using var pool = new TaskPool(4, async () =>
-   {
-       // This runs before EVERY task (e.g., refresh token, log, etc.)
-       await AuthService.EnsureAuthenticatedAsync();
-   });
-   
-   await pool.EnqueueAsync(
-       async () => await DoWorkAsync(),
-       onComplete: () => Console.WriteLine("Work done!")
-   );
-   
-   // With result callback
-   await pool.EnqueueAsync(
-       async () => await FetchDataAsync(),
-       onComplete: result => UpdateUI(result)
-   );
    
    using MobileConcept.Core.Tasks;
    
@@ -436,25 +386,20 @@ Console.WriteLine("All tasks completed!");
        Console.WriteLine($"All 1000 tasks completed. Sum: {results.Sum(t => t.Result)}");
    }
    
-   // Example 2: With base task and completion callbacks
+   // Example 2: With completion callbacks
    async Task AdvancedUsageAsync()
    {
        int completedCount = 0;
        object lockObj = new();
-       
-       // Base task runs before each of the 1000 tasks
-       using var taskPool = new TaskPool(16, async () =>
-       {
-           // Example: Ensure authentication, rate limiting, logging, etc.
-           await Task.Delay(10); // Simulate auth check
-       });
-       
+
+       using var taskPool = new TaskPool(16);
+
        var results = new List<Task<string>>();
-       
+
        for (int i = 0; i < 1000; i++)
        {
            int taskId = i;
-           
+
            var task = taskPool.EnqueueAsync(
                async () =>
                {
@@ -474,10 +419,10 @@ Console.WriteLine("All tasks completed!");
                    }
                }
            );
-           
+
            results.Add(task);
        }
-       
+
        await taskPool.WaitForCompletionAsync();
        Console.WriteLine($"All done! Completed: {completedCount}");
    }
@@ -488,12 +433,8 @@ Console.WriteLine("All tasks completed!");
        int successCount = 0;
        int errorCount = 0;
        object lockObj = new();
-       
-       using var taskPool = new TaskPool(10, async () =>
-       {
-           // Base task: Check network connectivity
-           await Task.Delay(5);
-       });
+
+       using var taskPool = new TaskPool(10);
        
        var downloadTasks = new List<Task<(int Id, bool Success, string Path)>>();
        
@@ -596,41 +537,4 @@ Console.WriteLine("All tasks completed!");
    await AdvancedUsageAsync();
    await DownloadSimulationAsync();
    await ProcessItemsAsync();
-   
-   // Option 1: Without base task (BaseTask is null)
-   using var taskPool = new TaskPool(8);
-   
-   // Option 2: With base task via constructor
-   using var taskPool = new TaskPool(8, async () =>
-   {
-       await AuthService.CheckTokenAsync();
-   });
-   
-   // Option 3: Set base task later via property
-   using var taskPool = new TaskPool(8);
-   taskPool.BaseTask = async () =>
-   {
-       await LogService.LogAsync("Task starting...");
-   };
-   
-   // Option 4: Clear base task at runtime
-   taskPool.BaseTask = null; // Disable base task
-   
-   // Without base task - simpler, faster
-   using var taskPool = new TaskPool(8);
-   
-   for (int i = 0; i < 1000; i++)
-   {
-       int taskId = i;
-       await taskPool.EnqueueAsync(
-           async () =>
-           {
-               await Task.Delay(50);
-               return $"Result_{taskId}";
-           },
-           onComplete: () => Console.WriteLine($"Task {taskId} done")
-       );
-   }
-   
-   await taskPool.WaitForCompletionAsync();
 */
