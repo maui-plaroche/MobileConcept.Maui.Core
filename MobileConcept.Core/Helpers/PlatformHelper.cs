@@ -17,7 +17,7 @@ public static class PlatformHelper
     /// </summary>
     /// <returns>The first <see cref="Window"/> in the application's window collection, or null if no windows exist.</returns>
     public static Window? GetCurrentWindow() 
-        => GetApplication()?.Windows.FirstOrDefault();
+        => GetApplication()?.Windows.ToList().FirstOrDefault();
 
     /// <summary>
     /// Gets the main page of the current window.
