@@ -2,7 +2,7 @@ namespace MobileConcept.Core.Tasks;
 
 public class Debouncer
 {
-    private CancellationTokenSource _cancellationTokenSource;
+    private CancellationTokenSource? _cancellationTokenSource;
     private readonly int _delayMilliseconds;
 
     public Debouncer(int delayMilliseconds = 300)
