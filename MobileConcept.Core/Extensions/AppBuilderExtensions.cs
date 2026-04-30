@@ -36,15 +36,21 @@ public static class AppBuilderExtensions
                 android.OnCreate((activity, bundle) =>
                 {
                 });
-                
+
                 android.OnStart(activity =>
                 {
                 });
 
                 android.OnResume(activity =>
                 {
-                    // -- Get Visible Page
                     var services = IPlatformApplication.Current?.Services;
+
+                    // App-wide event async (cohérent avec OnPause / iOS hooks)
+                    if (services?.GetService<IAppLifecycle>() is AppLifecycle lifecycle)
+                        Microsoft.Maui.Controls.Application.Current?.Dispatcher
+                            .DispatchAsync(lifecycle.RaiseEnterForegroundAsync);
+
+                    // Page-level dispatch (existant)
                     var navigationService = services?.GetRequiredService<INavigationService>();
                     var currentPage = navigationService?.GetCurrentPage();
                     if (currentPage is IAppLifeCycleContentPage lifeCyclePage)
@@ -55,10 +61,14 @@ public static class AppBuilderExtensions
 
                 android.OnPause(activity =>
                 {
-                    // -- Get Visible Page
                     var services = IPlatformApplication.Current?.Services;
+
+                    if (services?.GetService<IAppLifecycle>() is AppLifecycle lifecycle)
+                        Microsoft.Maui.Controls.Application.Current?.Dispatcher
+                            .DispatchAsync(lifecycle.RaiseEnterBackgroundAsync);
+
                     var navigationService = services?.GetRequiredService<INavigationService>();
-                    var currentPage = navigationService?.GetCurrentPage();                   
+                    var currentPage = navigationService?.GetCurrentPage();
                     if (currentPage is IAppLifeCycleContentPage lifeCyclePage)
                     {
                         currentPage.Dispatcher?.DispatchAsync(lifeCyclePage.OnAppEnterBackgroundAsync);
@@ -71,8 +81,12 @@ public static class AppBuilderExtensions
             {
                 ios.OnActivated(app =>
                 {
-                    // -- Get Visible Page
                     var services = IPlatformApplication.Current?.Services;
+
+                    if (services?.GetService<IAppLifecycle>() is AppLifecycle lifecycle)
+                        Microsoft.Maui.Controls.Application.Current?.Dispatcher
+                            .DispatchAsync(lifecycle.RaiseEnterForegroundAsync);
+
                     var navigationService = services?.GetRequiredService<INavigationService>();
                     var currentPage = navigationService?.GetCurrentPage();
                     if (currentPage is IAppLifeCycleContentPage lifeCyclePage)
@@ -82,10 +96,15 @@ public static class AppBuilderExtensions
                 });
                 ios.OnResignActivation(app =>
                 {
-                    // -- Get Visible Page
                     var services = IPlatformApplication.Current?.Services;
+
+                    if (services?.GetService<IAppLifecycle>() is AppLifecycle lifecycle)
+                        Microsoft.Maui.Controls.Application.Current?.Dispatcher
+                            .DispatchAsync(lifecycle.RaiseEnterBackgroundAsync);
+
                     var navigationService = services?.GetRequiredService<INavigationService>();
-                    var currentPage = navigationService?.GetCurrentPage();                    if (currentPage is IAppLifeCycleContentPage lifeCyclePage)
+                    var currentPage = navigationService?.GetCurrentPage();
+                    if (currentPage is IAppLifeCycleContentPage lifeCyclePage)
                     {
                         currentPage.Dispatcher?.DispatchAsync(lifeCyclePage.OnAppEnterBackgroundAsync);
                     }
