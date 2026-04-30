@@ -20,5 +20,6 @@ public class Bootstrapper(IServiceCollection container) : BootstrapperBase(conta
     {
         base.RegisterServices();
         Container.AddSingleton<INavigationService, NavigationService>();
+        Container.AddSingleton<IAppLifecycle, AppLifecycle>();
     }
 }
