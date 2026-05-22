@@ -130,11 +130,11 @@ internal static class NotificationChannelManager
 
         foreach (var t in entryAssembly.GetTypes())
         {
-            if (typeof(Activity).IsAssignableFrom(t)
-                && t.GetCustomAttributes(typeof(global::Android.App.ActivityAttribute), false)
-                     is global::Android.App.ActivityAttribute[] attrs
-                && attrs.Length > 0
-                && attrs[0].MainLauncher) return t;
+            if (!typeof(Activity).IsAssignableFrom(t)) continue;
+            var attrs = t.GetCustomAttributes(typeof(global::Android.App.ActivityAttribute), false)
+                         as global::Android.App.ActivityAttribute[];
+            if (attrs is { Length: > 0 } && attrs[0] is { } attr && attr.MainLauncher)
+                return t;
         }
         return null;
     }
