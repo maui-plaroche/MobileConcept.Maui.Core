@@ -69,4 +69,13 @@ public interface IPushNotificationService
     /// Appels suivants retournent null. À appeler au démarrage de l'app.
     /// </summary>
     NotificationPayload? GetInitialNotification();
+
+    // — Badge / cleanup —
+
+    /// <summary>
+    /// Clear app icon badge (iOS) + remove all displayed notifications (iOS + Android).
+    /// L'app devrait appeler ceci au foreground/launch pour que l'utilisateur ne voie
+    /// plus de pastille "vu" sur l'icône une fois qu'il a ouvert l'app.
+    /// </summary>
+    Task ClearBadgesAndNotificationsAsync();
 }

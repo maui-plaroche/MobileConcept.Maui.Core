@@ -108,6 +108,15 @@ public sealed class PushNotificationService : IPushNotificationService
 
     public NotificationPayload? GetInitialNotification() => FcmPlatformInit.ConsumeInitialNotification();
 
+    public Task ClearBadgesAndNotificationsAsync()
+    {
+        var ctx = global::Android.App.Application.Context;
+        AndroidX.Core.App.NotificationManagerCompat.From(ctx).CancelAll();
+        // Sur Android, le "notification dot" (Android 8+) suit automatiquement
+        // l'existence de notifs actives. CancelAll() les supprime → dot disparaît.
+        return Task.CompletedTask;
+    }
+
     // ---------------------------------------------------------------
     // Internal bridges depuis FcmAndroidService / FcmPlatformInit
     // ---------------------------------------------------------------

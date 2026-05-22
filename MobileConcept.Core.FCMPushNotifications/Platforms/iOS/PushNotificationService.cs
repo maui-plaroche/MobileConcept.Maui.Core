@@ -131,6 +131,16 @@ public sealed class PushNotificationService : IPushNotificationService
 
     public NotificationPayload? GetInitialNotification() => FcmPlatformInit.ConsumeInitialNotification();
 
+    public Task ClearBadgesAndNotificationsAsync()
+    {
+        // Reset badge count + remove all delivered notifs.
+        // iOS 17+ : SetBadgeCount remplace ApplicationIconBadgeNumber (deprecated).
+        var center = UserNotifications.UNUserNotificationCenter.Current;
+        center.SetBadgeCount(0, completion: null);
+        center.RemoveAllDeliveredNotifications();
+        return Task.CompletedTask;
+    }
+
     // ----- Bridges depuis FcmIosService -----
 
     internal void HandleNewToken(string token)
