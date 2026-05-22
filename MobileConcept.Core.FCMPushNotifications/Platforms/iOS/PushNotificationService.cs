@@ -134,10 +134,13 @@ public sealed class PushNotificationService : IPushNotificationService
     public Task ClearBadgesAndNotificationsAsync()
     {
         // Reset badge count + remove all delivered notifs.
-        // iOS 17+ : SetBadgeCount remplace ApplicationIconBadgeNumber (deprecated).
-        var center = UserNotifications.UNUserNotificationCenter.Current;
-        center.SetBadgeCount(0, completion: null);
-        center.RemoveAllDeliveredNotifications();
+        // Sur iOS 17+ UIApplication.ApplicationIconBadgeNumber est deprecated,
+        // mais le warning n'est pas fatal et l'API fonctionne encore — c'est le
+        // plus simple cross-version sans devoir dispatcher selon iOS version.
+#pragma warning disable CA1422 // Validate platform compatibility
+        UIKit.UIApplication.SharedApplication.ApplicationIconBadgeNumber = 0;
+#pragma warning restore CA1422
+        UserNotifications.UNUserNotificationCenter.Current.RemoveAllDeliveredNotifications();
         return Task.CompletedTask;
     }
 
