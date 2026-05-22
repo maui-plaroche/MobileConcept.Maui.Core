@@ -32,6 +32,17 @@ public static class FcmPlatformInit
         }
     }
 
+    /// <summary>
+    /// À appeler depuis AppDelegate.RegisteredForRemoteNotifications(app, deviceToken).
+    /// Avec FirebaseAppDelegateProxyEnabled=NO (notre config), Firebase ne swizzle plus
+    /// AppDelegate, donc il faut transmettre manuellement l'APNs token à FIRMessaging
+    /// pour qu'il puisse échanger contre le FCM token + recevoir les pushes.
+    /// </summary>
+    public static void SetApnsToken(NSData deviceToken)
+    {
+        Messaging.SharedInstance.ApnsToken = deviceToken;
+    }
+
     internal static NotificationPayload? ConsumeInitialNotification()
     {
         var p = _initialNotification;
