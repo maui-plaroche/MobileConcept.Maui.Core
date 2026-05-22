@@ -38,11 +38,13 @@ public sealed class FcmIosService : NSObject, IUNUserNotificationCenterDelegate,
         UNNotification notification,
         Action<UNNotificationPresentationOptions> completionHandler)
     {
+        System.Diagnostics.Debug.WriteLine("[FCM] WillPresentNotification (foreground push received iOS)");
         var payload = DecodePayload(notification.Request.Content.UserInfo);
 
         if (PushNotificationService.Instance is { } svc)
         {
             svc.RaiseNotificationReceived(payload);
+            System.Diagnostics.Debug.WriteLine($"[FCM] RaiseNotificationReceived done. ShowNotificationInForeground={svc.Options.ShowNotificationInForeground}");
             if (svc.Options.ShowNotificationInForeground)
                 completionHandler(
                     UNNotificationPresentationOptions.Banner |
@@ -53,6 +55,7 @@ public sealed class FcmIosService : NSObject, IUNUserNotificationCenterDelegate,
         }
         else
         {
+            System.Diagnostics.Debug.WriteLine("[FCM] WARNING : PushNotificationService.Instance is null !");
             completionHandler(UNNotificationPresentationOptions.None);
         }
     }
