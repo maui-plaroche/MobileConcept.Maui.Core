@@ -84,17 +84,33 @@ internal static class NotificationChannelManager
 
         if (withDeepLinkIntent)
         {
-            var mainActivityType = ResolveMainActivityType();
-            if (mainActivityType is not null)
+            // Récupère l'intent de launch standard via PackageManager (robust pour
+            // MAUI où Assembly.GetEntryAssembly() peut ne pas retourner l'app).
+            // Fallback ResolveMainActivityType si jamais le PackageManager retourne null.
+            var launch = ctx.PackageManager?.GetLaunchIntentForPackage(ctx.PackageName!);
+
+            if (launch is null)
             {
-                var launch = new Intent(ctx, mainActivityType);
-                launch.SetFlags(ActivityFlags.NewTask | ActivityFlags.ClearTop);
+                var mainActivityType = ResolveMainActivityType();
+                if (mainActivityType is not null)
+                {
+                    launch = new Intent(ctx, mainActivityType);
+                }
+            }
+
+            if (launch is not null)
+            {
+                launch.SetFlags(ActivityFlags.NewTask | ActivityFlags.ClearTop | ActivityFlags.SingleTop);
                 launch.PutExtra(
                     FcmPlatformInit.IntentExtraKey,
                     System.Text.Json.JsonSerializer.Serialize(payload.Data));
 
+                // requestCode unique par notif pour permettre plusieurs notifs
+                // simultanées avec extras différents (sinon UpdateCurrent
+                // écrase le payload de la précédente)
+                var requestCode = System.Threading.Interlocked.Increment(ref _intentCounter);
                 var pendingIntent = PendingIntent.GetActivity(
-                    ctx, 0, launch,
+                    ctx, requestCode, launch,
                     PendingIntentFlags.UpdateCurrent | PendingIntentFlags.Immutable);
                 builder.SetContentIntent(pendingIntent);
             }
@@ -141,5 +157,7 @@ internal static class NotificationChannelManager
 
     private static int _counter = 1000;
     private static int GenerateNotifId() => System.Threading.Interlocked.Increment(ref _counter);
+
+    private static int _intentCounter = 0;
 }
 #endif
