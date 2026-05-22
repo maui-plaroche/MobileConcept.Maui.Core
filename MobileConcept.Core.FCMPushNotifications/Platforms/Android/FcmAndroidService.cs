@@ -36,7 +36,10 @@ public sealed class FcmAndroidService : FirebaseMessagingService
             if (isForeground)
             {
                 if (svc.Options.ShowNotificationInForeground)
-                    NotificationChannelManager.Display(payload, svc.Options, withDeepLinkIntent: false);
+                    // Toujours attacher le PendingIntent : permet tap pour dismiss
+                    // (autoCancel) + ramener l'app au foreground si elle est passée
+                    // background entre la display et le tap.
+                    NotificationChannelManager.Display(payload, svc.Options, withDeepLinkIntent: true);
                 svc.RaiseNotificationReceived(payload);
             }
             else
