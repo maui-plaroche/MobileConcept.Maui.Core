@@ -1,0 +1,77 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>net10.0-android;net10.0-ios</TargetFrameworks>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <SingleProject>true</SingleProject>
+        <UseMaui>true</UseMaui>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <IsAotCompatible>true</IsAotCompatible>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+        <!-- Métadonnées NuGet -->
+        <Title>MobileConcept.Core.FCMPushNotifications</Title>
+        <PackageId>MobileConcept.Core.FCMPushNotifications</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>Paulin Laroche</Authors>
+        <Company>Mobile Concept</Company>
+        <Description>Native FCM push notifications for .NET MAUI (iOS + Android), with backend-agnostic token registration and topic management. Transport-only abstraction — the consuming app declines categories and payload conventions.</Description>
+        <PackageTags>maui, dotnet, mobile, android, ios, push, notifications, fcm, firebase, cross-platform</PackageTags>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <Copyright>© Mobile Concept. All rights reserved.</Copyright>
+        <PackageProjectUrl>https://github.com/maui-plaroche/MobileConcept.Maui.Core</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/maui-plaroche/MobileConcept.Maui.Core.git</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+
+        <Product>$(AssemblyName) ($(TargetFramework))</Product>
+        <PackageVersion>$(Version)$(VersionSuffix)</PackageVersion>
+        <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+
+        <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+
+        <NeutralLanguage>en</NeutralLanguage>
+
+        <Configurations>Debug;Release</Configurations>
+
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+        <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23.0</SupportedOSPlatformVersion>
+
+        <NoBuild>false</NoBuild>
+        <IncludeBuildOutput>true</IncludeBuildOutput>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" Condition="Exists('README.md')" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- ProjectReference local plutôt que NuGet (1.0.6 pas encore publié sur nuget.org).
+             Au moment de publier FCMPushNotifications, swap pour PackageReference. -->
+        <ProjectReference Include="..\MobileConcept.Core\MobileConcept.Core.csproj" />
+        <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+        <PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
+    </ItemGroup>
+
+    <!-- Bindings Firebase Android (binding officiel Xamarin maintenu par Microsoft) -->
+    <ItemGroup Condition="$(TargetFramework.Contains('-android'))">
+        <PackageReference Include="Xamarin.Firebase.Messaging" Version="124.*" />
+        <PackageReference Include="Xamarin.GooglePlayServices.Base" Version="118.*" />
+    </ItemGroup>
+
+    <!-- Bindings Firebase iOS — versions Plugin.Firebase / Xamarin.Firebase
+         8.x est la dernière disponible (legacy Xamarin native binding).
+         À surveiller : Microsoft pourrait sortir une refonte unifiée. -->
+    <ItemGroup Condition="$(TargetFramework.Contains('-ios'))">
+        <PackageReference Include="Xamarin.Firebase.iOS.CloudMessaging" Version="8.*" />
+        <PackageReference Include="Xamarin.Firebase.iOS.Core" Version="8.*" />
+    </ItemGroup>
+
+    <!-- MSBuild .targets livré avec le package (auto-déclare google-services.json + plist) -->
+    <ItemGroup>
+        <None Include="build\**" Pack="true" PackagePath="build\" />
+    </ItemGroup>
+
+</Project>

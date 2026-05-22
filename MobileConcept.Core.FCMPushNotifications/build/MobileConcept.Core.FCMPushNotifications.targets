@@ -1,0 +1,70 @@
+<Project>
+
+    <!-- ==========================================================
+         Android : auto-déclare google-services.json si présent
+         à l'emplacement conventionnel Platforms/Android/.
+         ========================================================== -->
+    <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'android'">
+        <GoogleServicesJson
+            Include="$(MSBuildProjectDirectory)\Platforms\Android\google-services.json"
+            Condition="Exists('$(MSBuildProjectDirectory)\Platforms\Android\google-services.json')" />
+    </ItemGroup>
+
+    <!-- ==========================================================
+         iOS : auto-déclare GoogleService-Info.plist en BundleResource.
+         ========================================================== -->
+    <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'ios'">
+        <BundleResource
+            Include="$(MSBuildProjectDirectory)\Platforms\iOS\GoogleService-Info.plist"
+            Condition="Exists('$(MSBuildProjectDirectory)\Platforms\iOS\GoogleService-Info.plist')" />
+    </ItemGroup>
+
+    <!-- ==========================================================
+         Swap dev/prod : copie google-services.{Debug|Release}.json
+         vers google-services.json selon $(Configuration). Permet de
+         maintenir 2 fichiers Firebase distincts (voxmap-dev / voxmap-prod)
+         et de switcher automatiquement au build.
+         ========================================================== -->
+    <Target Name="_FCMPush_SwapFirebaseConfig" BeforeTargets="Build">
+
+        <Copy
+            Condition="'$(Configuration)' == 'Debug' AND '$(TargetPlatformIdentifier)' == 'android' AND Exists('$(MSBuildProjectDirectory)\Platforms\Android\google-services.Debug.json')"
+            SourceFiles="$(MSBuildProjectDirectory)\Platforms\Android\google-services.Debug.json"
+            DestinationFiles="$(MSBuildProjectDirectory)\Platforms\Android\google-services.json"
+            SkipUnchangedFiles="true" />
+
+        <Copy
+            Condition="'$(Configuration)' == 'Release' AND '$(TargetPlatformIdentifier)' == 'android' AND Exists('$(MSBuildProjectDirectory)\Platforms\Android\google-services.Release.json')"
+            SourceFiles="$(MSBuildProjectDirectory)\Platforms\Android\google-services.Release.json"
+            DestinationFiles="$(MSBuildProjectDirectory)\Platforms\Android\google-services.json"
+            SkipUnchangedFiles="true" />
+
+        <Copy
+            Condition="'$(Configuration)' == 'Debug' AND '$(TargetPlatformIdentifier)' == 'ios' AND Exists('$(MSBuildProjectDirectory)\Platforms\iOS\GoogleService-Info.Debug.plist')"
+            SourceFiles="$(MSBuildProjectDirectory)\Platforms\iOS\GoogleService-Info.Debug.plist"
+            DestinationFiles="$(MSBuildProjectDirectory)\Platforms\iOS\GoogleService-Info.plist"
+            SkipUnchangedFiles="true" />
+
+        <Copy
+            Condition="'$(Configuration)' == 'Release' AND '$(TargetPlatformIdentifier)' == 'ios' AND Exists('$(MSBuildProjectDirectory)\Platforms\iOS\GoogleService-Info.Release.plist')"
+            SourceFiles="$(MSBuildProjectDirectory)\Platforms\iOS\GoogleService-Info.Release.plist"
+            DestinationFiles="$(MSBuildProjectDirectory)\Platforms\iOS\GoogleService-Info.plist"
+            SkipUnchangedFiles="true" />
+    </Target>
+
+    <!-- ==========================================================
+         Warning si les fichiers Firebase attendus sont absents.
+         Le NuGet ne peut pas les fournir (secrets app-specific),
+         mais on guide l'utilisateur.
+         ========================================================== -->
+    <Target Name="_FCMPush_WarnIfMissing" BeforeTargets="Build">
+        <Warning
+            Condition="'$(TargetPlatformIdentifier)' == 'android' AND !Exists('$(MSBuildProjectDirectory)\Platforms\Android\google-services.json') AND !Exists('$(MSBuildProjectDirectory)\Platforms\Android\google-services.Debug.json') AND !Exists('$(MSBuildProjectDirectory)\Platforms\Android\google-services.Release.json')"
+            Text="[MobileConcept.Core.FCMPushNotifications] google-services.json manquant dans Platforms/Android/ — les notifications push ne fonctionneront pas. Télécharge depuis Firebase Console." />
+
+        <Warning
+            Condition="'$(TargetPlatformIdentifier)' == 'ios' AND !Exists('$(MSBuildProjectDirectory)\Platforms\iOS\GoogleService-Info.plist') AND !Exists('$(MSBuildProjectDirectory)\Platforms\iOS\GoogleService-Info.Debug.plist') AND !Exists('$(MSBuildProjectDirectory)\Platforms\iOS\GoogleService-Info.Release.plist')"
+            Text="[MobileConcept.Core.FCMPushNotifications] GoogleService-Info.plist manquant dans Platforms/iOS/ — les notifications push ne fonctionneront pas. Télécharge depuis Firebase Console." />
+    </Target>
+
+</Project>
