@@ -46,27 +46,40 @@ public sealed class PushNotificationService : IPushNotificationService
 
         try
         {
-            // iOS : Messaging.SharedInstance.FcmToken est populé après que iOS
-            // ait registered for remote notifications et que le delegate
-            // DidReceiveRegistrationToken ait été appelé. Si null ici, l'app
-            // a appelé RegisterDeviceAsync trop tôt → on attend simplement
-            // que TokenRefreshed soit raise via HandleNewToken (le re-POST
-            // backend se fera automatiquement à ce moment-là).
-            var token = Messaging.SharedInstance.FcmToken;
+            // iOS : Messaging.SharedInstance.FcmToken est populé APRÈS que iOS
+            // ait completed DidRegisterForRemoteNotifications + Firebase ait
+            // échangé l'APNs token vs le FCM token. C'est async — quand on
+            // arrive ici juste après le grant permission, ça peut prendre 2-5s.
+            // On poll avec un timeout pour laisser le temps.
+            var token = await WaitForFcmTokenAsync(TimeSpan.FromSeconds(8), ct);
             if (string.IsNullOrEmpty(token))
-                return new RegisterResult(false, null, "token_pending");
+                return new RegisterResult(false, null, "token_timeout");
 
             _currentToken = token;
-            var ok = await PostTokenAsync(token, ct);
+            var (ok, error) = await PostTokenAsync(token, ct);
             return ok
                 ? new RegisterResult(true, token, null)
-                : new RegisterResult(false, token, "backend_register_failed");
+                : new RegisterResult(false, token, error ?? "backend_register_failed");
         }
         catch (Exception ex)
         {
             _log?.LogError(ex, "RegisterDeviceAsync failed");
-            return new RegisterResult(false, null, ex.Message);
+            System.Diagnostics.Debug.WriteLine($"[FCM] RegisterDeviceAsync exception : {ex}");
+            return new RegisterResult(false, null, $"exception: {ex.Message}");
         }
+    }
+
+    /// <summary>Poll Messaging.SharedInstance.FcmToken jusqu'à population OU timeout.</summary>
+    private static async Task<string?> WaitForFcmTokenAsync(TimeSpan timeout, CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            var t = Messaging.SharedInstance.FcmToken;
+            if (!string.IsNullOrEmpty(t)) return t;
+            await Task.Delay(250, ct);
+        }
+        return Messaging.SharedInstance.FcmToken; // dernier check
     }
 
     public async Task UnregisterDeviceAsync(CancellationToken ct = default)
@@ -135,31 +148,44 @@ public sealed class PushNotificationService : IPushNotificationService
 
     // ----- HTTP backend -----
 
-    private async Task<bool> PostTokenAsync(string token, CancellationToken ct)
+    private async Task<(bool ok, string? error)> PostTokenAsync(string token, CancellationToken ct)
     {
         if (Options.AccessTokenProvider is null || Options.RegisterTokenEndpoint is null)
-            return false;
+            return (false, "config_missing");
 
         var jwt = await Options.AccessTokenProvider(ct);
         if (string.IsNullOrEmpty(jwt))
         {
             _log?.LogDebug("RegisterDevice skipped — no access token (user not logged in)");
-            return false;
+            System.Diagnostics.Debug.WriteLine("[FCM] RegisterDevice : no access token (AccessTokenProvider returned null)");
+            return (false, "no_auth_token");
         }
 
-        var http = _httpFactory.CreateClient(Options.HttpClientName);
-        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
-
-        var body = new
+        try
         {
-            token,
-            platform = "ios",
-            appVersion = NSBundle.MainBundle.InfoDictionary?["CFBundleShortVersionString"]?.ToString(),
-            locale = NSLocale.CurrentLocale.Identifier
-        };
+            var http = _httpFactory.CreateClient(Options.HttpClientName);
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
 
-        var resp = await http.PostAsJsonAsync(Options.RegisterTokenEndpoint, body, ct);
-        return resp.IsSuccessStatusCode;
+            var body = new
+            {
+                token,
+                platform = "ios",
+                appVersion = NSBundle.MainBundle.InfoDictionary?["CFBundleShortVersionString"]?.ToString(),
+                locale = NSLocale.CurrentLocale.Identifier
+            };
+
+            var resp = await http.PostAsJsonAsync(Options.RegisterTokenEndpoint, body, ct);
+            if (resp.IsSuccessStatusCode) return (true, null);
+
+            System.Diagnostics.Debug.WriteLine(
+                $"[FCM] POST {Options.RegisterTokenEndpoint} returned {(int)resp.StatusCode} {resp.StatusCode}");
+            return (false, $"http_{(int)resp.StatusCode}");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[FCM] POST failed : {ex.Message}");
+            return (false, $"http_exception: {ex.Message}");
+        }
     }
 
     private async Task<bool> DeleteTokenAsync(string token, CancellationToken ct)
