@@ -61,12 +61,14 @@
         <PackageReference Include="Xamarin.GooglePlayServices.Base" Version="118.*" />
     </ItemGroup>
 
-    <!-- Bindings Firebase iOS — versions Plugin.Firebase / Xamarin.Firebase
-         8.x est la dernière disponible (legacy Xamarin native binding).
-         À surveiller : Microsoft pourrait sortir une refonte unifiée. -->
+    <!-- Bindings Firebase iOS — AdamE.Firebase.iOS.* (continuation maintenue des
+         bindings Xamarin, mêmes namespaces Firebase.*). Les Xamarin.Firebase.iOS.*
+         plafonnaient à 8.x (Firebase iOS 8, 2021) SANS privacy manifest → rejet
+         App Store ITMS-91061. AdamE suit Firebase iOS 12.x qui embarque les
+         PrivacyInfo.xcprivacy dans chaque framework. -->
     <ItemGroup Condition="$(TargetFramework.Contains('-ios'))">
-        <PackageReference Include="Xamarin.Firebase.iOS.CloudMessaging" Version="8.*" />
-        <PackageReference Include="Xamarin.Firebase.iOS.Core" Version="8.*" />
+        <PackageReference Include="AdamE.Firebase.iOS.CloudMessaging" Version="12.10.0" />
+        <PackageReference Include="AdamE.Firebase.iOS.Core" Version="12.10.0" />
     </ItemGroup>
 
     <!-- MSBuild .targets livré avec le package (auto-déclare google-services.json + plist) -->
