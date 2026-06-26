@@ -155,16 +155,17 @@ public sealed class PushNotificationService : IPushNotificationService
         var http = _httpFactory.CreateClient(Options.HttpClientName);
         http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", jwt);
 
-        var body = new
+        var body = new RegisterTokenRequest
         {
-            token,
-            platform = "android",
-            appVersion = global::Android.App.Application.Context.PackageManager?
+            Token = token,
+            Platform = "android",
+            AppVersion = global::Android.App.Application.Context.PackageManager?
                 .GetPackageInfo(global::Android.App.Application.Context.PackageName!, 0)?.VersionName,
-            locale = Java.Util.Locale.Default.ToLanguageTag()
+            Locale = Java.Util.Locale.Default.ToLanguageTag()
         };
 
-        var resp = await http.PostAsJsonAsync(Options.RegisterTokenEndpoint, body, ct);
+        var resp = await http.PostAsJsonAsync(
+            Options.RegisterTokenEndpoint, body, PushJsonContext.Default.RegisterTokenRequest, ct);
         return resp.IsSuccessStatusCode;
     }
 
@@ -181,7 +182,8 @@ public sealed class PushNotificationService : IPushNotificationService
 
         var req = new HttpRequestMessage(HttpMethod.Delete, Options.UnregisterTokenEndpoint)
         {
-            Content = JsonContent.Create(new { token })
+            Content = JsonContent.Create(
+                new UnregisterTokenRequest { Token = token }, PushJsonContext.Default.UnregisterTokenRequest)
         };
         var resp = await http.SendAsync(req, ct);
         return resp.IsSuccessStatusCode;
