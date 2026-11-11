@@ -1,6 +1,12 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MobileConcept.Core", "MobileConcept.Core\MobileConcept.Core.csproj", "{F87CD2EC-D480-46A0-B587-8EBA323F75B8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MobileConcept.Core.GameEngine", "MobileConcept.Core.GameEngine\MobileConcept.Core.GameEngine.csproj", "{A10B6A54-7001-4F66-9AC1-6F4DAF000001}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MobileConcept.Core.GameEngine.Maui", "MobileConcept.Core.GameEngine.Maui\MobileConcept.Core.GameEngine.Maui.csproj", "{A10B6A54-7001-4F66-9AC1-6F4DAF000002}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MobileConcept.Core.GameEngine.Tests", "MobileConcept.Core.GameEngine.Tests\MobileConcept.Core.GameEngine.Tests.csproj", "{A10B6A54-7001-4F66-9AC1-6F4DAF000003}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -8,6 +14,18 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A10B6A54-7001-4F66-9AC1-6F4DAF000001}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A10B6A54-7001-4F66-9AC1-6F4DAF000001}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A10B6A54-7001-4F66-9AC1-6F4DAF000001}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A10B6A54-7001-4F66-9AC1-6F4DAF000001}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A10B6A54-7001-4F66-9AC1-6F4DAF000002}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A10B6A54-7001-4F66-9AC1-6F4DAF000002}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A10B6A54-7001-4F66-9AC1-6F4DAF000002}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A10B6A54-7001-4F66-9AC1-6F4DAF000002}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A10B6A54-7001-4F66-9AC1-6F4DAF000003}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A10B6A54-7001-4F66-9AC1-6F4DAF000003}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A10B6A54-7001-4F66-9AC1-6F4DAF000003}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A10B6A54-7001-4F66-9AC1-6F4DAF000003}.Release|Any CPU.Build.0 = Release|Any CPU
 		{F87CD2EC-D480-46A0-B587-8EBA323F75B8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{F87CD2EC-D480-46A0-B587-8EBA323F75B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F87CD2EC-D480-46A0-B587-8EBA323F75B8}.Release|Any CPU.ActiveCfg = Release|Any CPU

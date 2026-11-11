@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../GameEngine.props" />
+  <PropertyGroup>
+    <TargetFramework>$(GameEngineDotNetVersion)</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <PackageId>MobileConcept.Core.GameEngine</PackageId><Version>0.1.0</Version>
+    <Description>Moteur de présentation 2.5D SkiaSharp : projection, animation et particules.</Description>
+    <Authors>Mobile Concept</Authors><PackageLicenseExpression>MIT</PackageLicenseExpression>
+  </PropertyGroup>
+  <ItemGroup><PackageReference Include="SkiaSharp" Version="$(GameEngineSkiaVersion)" /></ItemGroup>
+</Project>

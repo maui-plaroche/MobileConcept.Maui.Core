@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="../GameEngine.props" />
+  <PropertyGroup>
+    <TargetFrameworks>$(GameEngineDotNetVersion)-android;$(GameEngineDotNetVersion)-ios</TargetFrameworks>
+    <UseMaui>true</UseMaui><SingleProject>true</SingleProject>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <Version>0.1.0</Version><Authors>Mobile Concept</Authors>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">23.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../MobileConcept.Core/MobileConcept.Core.csproj" />
+    <ProjectReference Include="../MobileConcept.Core.GameEngine/MobileConcept.Core.GameEngine.csproj" />
+    <PackageReference Include="Microsoft.Maui.Controls" Version="$(GameEngineMauiVersion)" />
+    <PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="$(GameEngineSkiaVersion)" />
+  </ItemGroup>
+</Project>

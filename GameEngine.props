@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <GameEngineDotNetVersion>net10.0</GameEngineDotNetVersion>
+    <GameEngineMauiVersion>10.0.20</GameEngineMauiVersion>
+    <GameEngineSkiaVersion>3.119.1</GameEngineSkiaVersion>
+  </PropertyGroup>
+</Project>
