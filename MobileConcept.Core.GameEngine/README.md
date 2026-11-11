@@ -33,7 +33,7 @@ effects.Clear(page.Window);
 2. La caméra transforme ensuite les unités de dessin en coordonnées MAUI. Inverser caméra puis projection pour le picking.
 3. Dessiner sol et ombres, puis objets triés par profondeur des pieds et identifiant stable, puis effets locaux, HUD MAUI, overlays natifs temporaires.
 4. La grille métier décide immédiatement ; le rendu interpole vers l'état confirmé. Les animations n'écrivent jamais les règles.
-5. Horloge monotone ; pas fixe 1/60 s, au plus six pas par tick. Réinitialiser au retour au premier plan. La fréquence du dispatcher n'est pas une garantie de 60 fps.
+5. Images déclenchées par l'écran (`DisplayFrameSource` : Choreographer sur Android, CADisplayLink sur iOS jusqu'à 120 i/s) et pas variable égal au temps écoulé entre deux images (borné à 0,1 s). Le minuteur à 1/60 s d'origine se décalait de l'écran (6 à 19 % d'images à zéro ou deux pas) ; il ne reste qu'en repli. `FixedStepClock` reste disponible pour des règles à pas fixe.
 6. UI, simulation visuelle et rendu sur un même thread. Préparer les fichiers avant d'afficher la scène ; aucun Task.Run pour accéder à SKCanvas ou aux vues.
 7. Sprites RGBA transparents, pivot aux pieds et rectangles d'atlas explicites. Éviter les atlas monolithiques : fichiers par personnage, action et direction. Le cache détient les bitmaps ; une scène ne doit pas conserver une texture après Clear().
 8. L'animation de marche peut boucler ; poussée et victoire se terminent. Les ombres sont des objets distincts. Les caisses ne sont jamais dessinées dans le sprite du personnage.
@@ -80,3 +80,18 @@ Sources techniques : [SKCanvasView](https://learn.microsoft.com/dotnet/api/skias
 
 `GameCanvasView` borne son raster (`MaxRasterDimension`, `MaxRasterPixels`) et laisse le compositeur l'agrandir : économique pour le décor, mais les sprites en ressortent flous. Une scène qui implémente `IOverlayScene` reçoit en plus `RenderOverlay(canvas, viewport)` sur un second `SKCanvasView` transparent, en pleine résolution, dessiné après `Render` avec le même viewport logique. N'y mettre que les éléments fins (héros, texte, pictogrammes) : le coût est celui d'un effacement plein écran plus les tracés. La couche est masquée quand la scène courante n'implémente pas l'interface.
 
+
+## Rendu par la carte graphique (`GameCanvasView(gpu: true)`)
+
+Même architecture sur Android et iOS : à chaque image de l'écran, la scène avance puis s'enregistre dans une `SKPicture` sur le fil d'interface ; une surface de la carte graphique en pleine résolution rejoue la dernière image. Surfaces : `SKGLView` (OpenGL, `GLTextureView`) sur Android, `MetalSurface` (`SKMetalView`, dessin à la demande) sur iOS, enregistrée par `UseMobileConceptGameEngine()`. Les règles et les gestes restent sur le fil d'interface même quand Android dessine sur son fil OpenGL. `Render` et `RenderOverlay` sont enregistrés dans la même image : les plafonds de raster et la couche séparée ne servent plus qu'au mode processeur, gardé en repli.
+
+Mesures en Release (Sokoban World, 11 novembre 2026) :
+
+| Scène | Processeur, minuteur | Carte graphique, écran |
+|---|---|---|
+| Pixel 7a, carte | 30 à 56 i/s, image réduite | 57 à 60 i/s, 1080×2400 (OpenGL) |
+| iPhone 17, carte | 56 i/s irréguliers, image réduite | 120 i/s, 1206×2622 (Metal) |
+
+Mesure intégrée : `GameCanvasView.FrameDiagnostics = true` écrit une ligne `[FrameStats]` toutes les 5 s (cadence, intervalles, temps d'enregistrement et de relecture). À n'activer que pour les mesures.
+
+Piège : après une modification du moteur, nettoyer `bin/obj` Release iOS de l'app et du moteur avant de recompiler ; une sortie AOT périmée plante au lancement sans pile managée.

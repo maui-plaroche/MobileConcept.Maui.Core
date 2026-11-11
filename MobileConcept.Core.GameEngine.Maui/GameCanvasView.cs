@@ -8,7 +8,16 @@ using SkiaSharp.Views.Maui.Controls;
 
 namespace MobileConcept.Core.GameEngine.Maui;
 
-/// <summary>Surface raster bornée, agrandie par le compositeur natif. La scène reste en coordonnées MAUI.</summary>
+/// <summary>
+/// Vue de jeu. Deux modes, même contrat de scène, même code sur Android et iOS :
+/// <list type="bullet">
+/// <item>processeur (par défaut) : surface raster bornée, agrandie par le compositeur natif, plus une couche pleine résolution pour <see cref="IOverlayScene"/> ;</item>
+/// <item>carte graphique (<c>gpu: true</c>) : une seule surface en pleine résolution, Metal sur iOS (<see cref="MetalSurface"/>), OpenGL sur Android (<see cref="SKGLView"/>). À chaque image de l'écran, la scène avance
+/// puis s'enregistre dans une <see cref="SKPicture"/> sur le fil d'interface ; la surface de la carte graphique la rejoue. Les règles et les gestes ne quittent donc
+/// jamais le fil d'interface, même si Android dessine sur son fil OpenGL.</item>
+/// </list>
+/// La scène reste en coordonnées MAUI.
+/// </summary>
 public sealed class GameCanvasView : ContentView, IDisposable
 {
     private readonly SKCanvasView canvas = new() { IgnorePixelScaling = false, InputTransparent = true };
@@ -17,13 +26,16 @@ public sealed class GameCanvasView : ContentView, IDisposable
     private bool overlayAttached;
     // MAUI 10 décale par défaut les enfants d'un layout des marges de sécurité iOS : le canvas doit couvrir tout l'écran.
     private readonly AbsoluteLayout layout = new() { IgnoreSafeArea = true, SafeAreaEdges = SafeAreaEdges.None };
-    private readonly Stopwatch stopwatch = new();
-    private readonly FixedStepClock clock = new();
-    private IDispatcherTimer? timer;
-    private double previous;
+    // Images déclenchées par l'écran (Choreographer, CADisplayLink), pas par un minuteur : cadence régulière et pas de temps exact.
+    private DisplayFrameSource? frames;
+    private double previous = -1;
     private bool disposed;
+    // Au-delà, l'application était suspendue ou l'image a calé : on n'avance pas le jeu d'un bond.
+    private const double MaxFrameSeconds = .1;
     public IGameScene? Scene { get; set; }
-    public bool IsRunning => timer?.IsRunning == true;
+    public bool IsRunning => frames?.IsRunning == true;
+    /// <summary>Fréquence maximale demandée aux écrans à fréquence variable (iPhone ProMotion jusqu'à 120). 0 : fréquence par défaut du système.</summary>
+    public int MaximumFramesPerSecond { get; set; }
     // Borne du bitmap Skia, en pixels physiques, indépendamment de la densité Android.
     private int maxRasterDimension = 1024, maxRasterPixels = 768 * 1024;
     // Modifiables à chaud : une scène coûteuse (carte) garde un raster borné, une scène légère (plateau en cache) passe en pleine résolution.
@@ -31,9 +43,37 @@ public sealed class GameCanvasView : ContentView, IDisposable
     public int MaxRasterPixels { get => maxRasterPixels; set { if (maxRasterPixels == value) return; maxRasterPixels = value; ApplyRaster(); } }
     private double sizeWidth, sizeHeight;
     public event EventHandler? FrameAdvanced;
+    /// <summary>Mesure de la cadence et du temps de dessin, écrite sur la console toutes les 5 s. Désactivée par défaut, pour les mesures seulement.</summary>
+    public static bool FrameDiagnostics { get; set; }
+    private readonly FrameDiagnosticsLog diagnostics = new();
+    // Mode carte graphique : image enregistrée la plus récente, images à libérer, image en cours de lecture par le fil OpenGL.
+#if IOS
+    private readonly MetalSurface? gpuView;
+#else
+    private readonly SKGLView? gpuView;
+#endif
+    private readonly object pictures = new();
+    private SKPicture? latest, playing;
+    private readonly List<SKPicture> retired = [];
+    private float latestScale = 1;
+    public bool UsesGpu => gpuView is not null;
 
-    public GameCanvasView()
+    public GameCanvasView(bool gpu = false)
     {
+        if (gpu)
+        {
+#if IOS
+            gpuView = new MetalSurface { InputTransparent = true };
+            gpuView.PaintSurface += (_, e) => PaintGpu(e.Surface, e.BackendRenderTarget.Width, e.BackendRenderTarget.Height);
+#else
+            gpuView = new SKGLView { HasRenderLoop = false, IgnorePixelScaling = false, InputTransparent = true };
+            gpuView.PaintSurface += (_, e) => PaintGpu(e.Surface, e.BackendRenderTarget.Width, e.BackendRenderTarget.Height);
+#endif
+            layout.Children.Add(gpuView); Content = layout;
+            Unloaded += OnUnloaded;
+            diagnostics.Gpu = true;
+            return;
+        }
         canvas.AnchorX = canvas.AnchorY = 0;
         layout.Children.Add(canvas); Content = layout;
         canvas.PaintSurface += Paint; overlay.PaintSurface += PaintOverlay; Unloaded += OnUnloaded;
@@ -47,6 +87,7 @@ public sealed class GameCanvasView : ContentView, IDisposable
     {
         double width = sizeWidth, height = sizeHeight;
         if (width <= 0 || height <= 0) return;
+        if (gpuView is not null) { AbsoluteLayout.SetLayoutBounds(gpuView, new Rect(0, 0, width, height)); return; }
         double density = Math.Max(1, DeviceDisplay.Current.MainDisplayInfo.Density);
         double ratio = Math.Min(1, Math.Min(MaxRasterDimension / (Math.Max(width, height) * density),
             Math.Sqrt(MaxRasterPixels / (width * height * density * density))));
@@ -54,7 +95,7 @@ public sealed class GameCanvasView : ContentView, IDisposable
         canvas.Scale = 1 / ratio;
         AbsoluteLayout.SetLayoutBounds(overlay, new Rect(0, 0, width, height));
     }
-    public void InvalidateSurface() { canvas.InvalidateSurface(); if (overlayAttached) overlay.InvalidateSurface(); }
+    public void InvalidateSurface() { if (gpuView is not null) { Record(); gpuView.InvalidateSurface(); return; } canvas.InvalidateSurface(); if (overlayAttached) overlay.InvalidateSurface(); }
     /// <summary>La couche pleine résolution n'existe (surface et texture natives) que tant que la scène en a besoin.</summary>
     private void SyncOverlay(bool wanted)
     {
@@ -67,17 +108,19 @@ public sealed class GameCanvasView : ContentView, IDisposable
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (IsRunning) return;
-        timer ??= Dispatcher.CreateTimer();
-        timer.Interval = TimeSpan.FromSeconds(1.0 / 60);
-        timer.Tick -= Tick; timer.Tick += Tick;
-        clock.Reset(); previous = 0; stopwatch.Restart(); timer.Start();
+        frames ??= new DisplayFrameSource(Dispatcher, Tick);
+        frames.MaximumFramesPerSecond = MaximumFramesPerSecond;
+        previous = -1; frames.Start();
     }
-    public void Stop() { timer?.Stop(); stopwatch.Reset(); clock.Reset(); }
-    private void Tick(object? sender, EventArgs e)
+    public void Stop() { frames?.Stop(); previous = -1; }
+    private void Tick(double now)
     {
-        double now = stopwatch.Elapsed.TotalSeconds;
-        if (Scene is { } scene) clock.Advance(now - previous, scene.Update);
+        // Pas variable, égal au temps réel entre deux images de l'écran : une image avance toujours d'exactement ce qu'elle affiche.
+        double dt = previous < 0 ? 0 : Math.Clamp(now - previous, 0, MaxFrameSeconds);
+        if (Scene is { } scene && dt > 0) scene.Update((float)dt);
+        if (FrameDiagnostics && previous >= 0) diagnostics.Tick(now, now - previous, dt > 0 ? 1 : 0, Scene is IOverlayScene);
         previous = now;
+        if (gpuView is not null) { Record(); gpuView.InvalidateSurface(); FrameAdvanced?.Invoke(this, EventArgs.Empty); return; }
         bool hasOverlay = Scene is IOverlayScene;
         SyncOverlay(hasOverlay);
         canvas.InvalidateSurface(); if (hasOverlay) overlay.InvalidateSurface();
@@ -93,7 +136,9 @@ public sealed class GameCanvasView : ContentView, IDisposable
         // sans appliquer une deuxième fois la réduction liée à la densité.
         if (Width <= 0 || Height <= 0) { target.Restore(); return; }
         target.Scale(e.Info.Width / (float)Width, e.Info.Height / (float)Height);
+        long start = FrameDiagnostics ? Stopwatch.GetTimestamp() : 0;
         Scene?.Render(target, new SKSize((float)Width, (float)Height));
+        if (FrameDiagnostics) diagnostics.Painted(false, Stopwatch.GetElapsedTime(start).TotalMilliseconds, e.Info.Width, e.Info.Height);
         target.Restore();
     }
     private void PaintOverlay(object? sender, SKPaintSurfaceEventArgs e)
@@ -103,17 +148,64 @@ public sealed class GameCanvasView : ContentView, IDisposable
         if (Width <= 0 || Height <= 0 || Scene is not IOverlayScene scene) return;
         target.Save();
         target.Scale(e.Info.Width / (float)Width, e.Info.Height / (float)Height);
+        long start = FrameDiagnostics ? Stopwatch.GetTimestamp() : 0;
         scene.RenderOverlay(target, new SKSize((float)Width, (float)Height));
+        if (FrameDiagnostics) diagnostics.Painted(true, Stopwatch.GetElapsedTime(start).TotalMilliseconds, e.Info.Width, e.Info.Height);
         target.Restore();
+    }
+    /// <summary>Fil d'interface : la scène s'enregistre en pixels physiques (les scènes qui lisent l'échelle du canvas gardent leurs choix de netteté).</summary>
+    private void Record()
+    {
+        if (Scene is not { } scene || Width <= 0 || Height <= 0) return;
+        float density = (float)Math.Max(1, DeviceDisplay.Current.MainDisplayInfo.Density);
+        var size = new SKSize((float)Width, (float)Height);
+        long start = FrameDiagnostics ? Stopwatch.GetTimestamp() : 0;
+        using var recorder = new SKPictureRecorder();
+        var canvas = recorder.BeginRecording(SKRect.Create(size.Width * density, size.Height * density));
+        canvas.Scale(density);
+        scene.Render(canvas, size);
+        if (scene is IOverlayScene overlayScene) overlayScene.RenderOverlay(canvas, size);
+        var picture = recorder.EndRecording();
+        if (FrameDiagnostics) diagnostics.Painted(true, Stopwatch.GetElapsedTime(start).TotalMilliseconds, (int)(size.Width * density), (int)(size.Height * density));
+        lock (pictures)
+        {
+            if (latest is not null) retired.Add(latest);
+            latest = picture; latestScale = density;
+            // Libère les images que le fil OpenGL ne lit plus.
+            for (int i = retired.Count - 1; i >= 0; i--)
+                if (!ReferenceEquals(retired[i], playing)) { retired[i].Dispose(); retired.RemoveAt(i); }
+        }
+    }
+    /// <summary>Fil OpenGL sur Android, fil d'interface sur iOS (Metal) : rejoue la dernière image enregistrée.</summary>
+    private void PaintGpu(SKSurface surface, int pixelWidth, int pixelHeight)
+    {
+        var target = surface.Canvas;
+        SKPicture? picture; float scale;
+        lock (pictures) { picture = playing = latest; scale = latestScale; }
+        long start = FrameDiagnostics ? Stopwatch.GetTimestamp() : 0;
+        target.Clear(SKColors.Transparent);
+        if (picture is not null && Width > 0)
+        {
+            target.Save();
+            // La surface peut différer de quelques pixels de la taille enregistrée.
+            float fit = pixelWidth / (float)(Width * scale);
+            if (MathF.Abs(fit - 1) > .001f) target.Scale(fit);
+            target.DrawPicture(picture);
+            target.Restore();
+        }
+        target.Flush();
+        if (FrameDiagnostics) diagnostics.Painted(false, Stopwatch.GetElapsedTime(start).TotalMilliseconds, pixelWidth, pixelHeight);
+        lock (pictures) playing = null;
     }
     private void OnUnloaded(object? sender, EventArgs e) => Stop();
     public void Dispose()
     {
         if (disposed) return;
         disposed = true; Stop();
-        if (timer is not null) timer.Tick -= Tick;
+        frames?.Dispose(); frames = null;
         canvas.PaintSurface -= Paint; overlay.PaintSurface -= PaintOverlay; Unloaded -= OnUnloaded;
         Scene = null; FrameAdvanced = null;
-        canvas.Handler?.DisconnectHandler(); overlay.Handler?.DisconnectHandler(); Handler?.DisconnectHandler();
+        canvas.Handler?.DisconnectHandler(); overlay.Handler?.DisconnectHandler(); gpuView?.Handler?.DisconnectHandler(); Handler?.DisconnectHandler();
+        lock (pictures) { latest?.Dispose(); latest = null; foreach (var p in retired) p.Dispose(); retired.Clear(); }
     }
 }

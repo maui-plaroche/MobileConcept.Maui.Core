@@ -11,6 +11,9 @@ public static class AppBuilderExtensions
     public static MauiAppBuilder UseMobileConceptGameEngine(this MauiAppBuilder builder)
     {
         builder.UseSkiaSharp();
+#if IOS
+        builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<MetalSurface, MetalSurfaceHandler>());
+#endif
         builder.Services.TryAddSingleton<IWindowEffects, NativeWindowEffects>();
         return builder;
     }
