@@ -1,22 +1,30 @@
-
 # MobileConcept.Maui.Core
 
 Essential core library for .NET MAUI applications. Provides utilities, base classes, and extension methods for cross-platform mobile development on Android and iOS.
 
+## Packages in this repository
+
+| Package | Version | Purpose | Documentation |
+|---|---|---|---|
+| `MobileConcept.Core` | 1.0.6 | MVVM base classes, lifecycle, navigation, bootstrapper, tasks, image helpers (this page) | this README |
+| `MobileConcept.Core.FCMPushNotifications` | 1.0.0 | Native Firebase Cloud Messaging push for iOS and Android | [README](MobileConcept.Core.FCMPushNotifications/README.md) |
+| `MobileConcept.Core.GameEngine` | 0.1.0 | 2.5D game engine core on SkiaSharp (scene contract, projection, sprites, particles, texture cache) | [README (French)](MobileConcept.Core.GameEngine/README.md) |
+| `MobileConcept.Core.GameEngine.Maui` | 0.1.0 | MAUI host for the engine: display-synced loop, GPU rendering (OpenGL on Android, Metal on iOS), native overlays | [README (French)](MobileConcept.Core.GameEngine.Maui/README.md) |
+
 ## Installation
-```
-bash
-dotnet add package MobileConcept.Maui.Core
+```bash
+dotnet add package MobileConcept.Core
 ```
 Or via NuGet Package Manager:
-```
-
-Install-Package MobileConcept.Maui.Core
+```powershell
+Install-Package MobileConcept.Core
 ```
 ## Features
 
 - **ViewModel Lifecycle Management** - Automatic handling of page appearing/disappearing events
-- **Application Lifecycle Events** - React to app foreground/background transitions
+- **Application Lifecycle Events** - React to app foreground/background transitions, in ViewModels or through the `IAppLifecycle` service
+- **Async Utilities** - `TaskPool` (bounded concurrency) and `Debouncer`
+- **Railway-Oriented Results** - `Result<T>` with `Map` / `Bind`
 - **Type-Safe Navigation** - Navigate between pages with strongly-typed parameters
 - **Parameter Passing** - Pass multiple parameters during navigation
 - **Bootstrapper Pattern** - Structured dependency injection with `BootstrapperBase`
@@ -27,8 +35,9 @@ Install-Package MobileConcept.Maui.Core
 
 ## Requirements
 
-- .NET 9.0 or later
-- .NET MAUI 9.0 or later
+- .NET 10 (targets `net10.0-android` and `net10.0-ios`)
+- .NET MAUI 10
+- Android API 23+, iOS 15+
 
 ---
 
@@ -37,8 +46,7 @@ Install-Package MobileConcept.Maui.Core
 ### MauiProgram.cs Configuration
 
 Add `.UseMobileConcept()` to your MAUI app builder and use a bootstrapper for DI:
-```
-csharp
+```csharp
 using MobileConcept.Core.Extensions;
 
 public static class MauiProgram
@@ -79,8 +87,7 @@ The `.UseMobileConcept()` extension:
 ### BootstrapperBase
 
 Use `BootstrapperBase` to organize your dependency injection registrations in a clean, structured way:
-```
-csharp
+```csharp
 using Microsoft.Extensions.DependencyInjection;
 using MobileConcept.Core.Bootstrap;
 
@@ -130,8 +137,7 @@ public SampleDemoBootstrapper(IServiceCollection services) : base(services)
 ### ViewModelBase
 
 All ViewModels should inherit from `ViewModelBase` to gain access to lifecycle methods:
-```
-csharp
+```csharp
 using MobileConcept.Core.ViewModels;
 
 public partial class MainPageViewModel : ViewModelBase
@@ -186,6 +192,26 @@ public partial class MainPageViewModel : ViewModelBase
 | `OnAppEnterForegroundAsync()` | Called when app enters foreground (Android: OnResume, iOS: OnActivated). |
 | `OnAppEnterBackgroundAsync()` | Called when app enters background (Android: OnPause, iOS: OnResignActivation). |
 
+### App-wide lifecycle service
+
+Services that are not ViewModels (session refresh, telemetry, sync) can subscribe to the `IAppLifecycle` singleton registered by `.UseMobileConcept()`:
+```csharp
+using MobileConcept.Core.Services;
+
+public sealed class SessionService
+{
+    public SessionService(IAppLifecycle lifecycle)
+    {
+        lifecycle.AppEnterForegroundAsync += RefreshAsync;
+        lifecycle.AppEnterBackgroundAsync += SaveAsync;
+    }
+
+    private Task RefreshAsync() => Task.CompletedTask;
+    private Task SaveAsync() => Task.CompletedTask;
+}
+```
+Cold start is not raised through these events: it is the initial activation.
+
 ---
 
 ## Navigation Service
@@ -193,8 +219,7 @@ public partial class MainPageViewModel : ViewModelBase
 ### INavigationService
 
 The `INavigationService` provides type-safe navigation between pages:
-```
-csharp
+```csharp
 public partial class MainPageViewModel(INavigationService navigationService) : ViewModelBase
 {
     [RelayCommand]
@@ -215,8 +240,7 @@ public partial class MainPageViewModel(INavigationService navigationService) : V
 ### Receiving Parameters
 
 In your destination ViewModel, override `InitializeAsync` to receive the parameters:
-```
-csharp
+```csharp
 public partial class SecondPageViewModel : ViewModelBase
 {
     public override Task InitializeAsync(params object[] args)
@@ -239,8 +263,7 @@ public partial class SecondPageViewModel : ViewModelBase
 ### XAML Configuration
 
 Pages should inherit from `BaseContentPage<TViewModel>`:
-```
-xml
+```xml
 <?xml version="1.0" encoding="utf-8"?>
 <views:BaseContentPage x:TypeArguments="viewModels:MainPageViewModel"
                        xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -256,8 +279,7 @@ xml
 ### Code-Behind Configuration
 
 Enable lifecycle events in your page's code-behind:
-```
-csharp
+```csharp
 using MobileConcept.Core.Views;
 using MobileConceptSample.ViewModels;
 
@@ -275,8 +297,7 @@ public partial class MainPage
 ### AppShell Configuration
 
 Register your routes in `AppShell.xaml`:
-```
-xml
+```xml
 <?xml version="1.0" encoding="UTF-8" ?>
 <Shell x:Class="MobileConceptSample.AppShell"
        xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
@@ -296,8 +317,7 @@ xml
 ## Complete Example
 
 ### MainPageViewModel.cs
-```
-csharp
+```csharp
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -361,9 +381,8 @@ public partial class MainPageViewModel(INavigationService navigationService) : V
 ### Image Rotation and Resizing
 
 The `ImageRotationHelper` class helps you handle images from the camera or photo library, automatically managing EXIF rotation and resizing:
-```
-csharp
-using MobileConcept.Maui.Core.Helpers;
+```csharp
+using MobileConcept.Core.Images.Helpers;
 
 private async Task MediaClickAsync(string mediaType)
 {
@@ -415,8 +434,7 @@ private async Task MediaClickAsync(string mediaType)
 ---
 
 ## Project Structure
-```
-
+```text
 MyMauiApp/
 ├── Bootstrap/
 │   └── AppBootstrapper.cs      # Your custom bootstrapper
@@ -474,4 +492,3 @@ For issues and questions, please visit our [GitHub repository](https://github.co
 ---
 
 Part of the **MobileConcept.Maui** suite of packages for .NET MAUI development.
-```

@@ -4,10 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**MobileConcept.Core** is a .NET MAUI library distributed as a NuGet package that provides essential utilities, base classes, and patterns for building cross-platform mobile applications. The library targets .NET 9.0+ on Android (API 23+) and iOS (15.0+).
+**MobileConcept.Core** is a .NET MAUI library distributed as a NuGet package that provides essential utilities, base classes, and patterns for building cross-platform mobile applications. The library targets .NET 10 on Android (API 23+) and iOS (15.0+).
 
 **Current Version:** 1.0.6
 **Package ID:** MobileConcept.Core
+**Repository:** `maui-plaroche/MobileConcept.Maui.Core`, working branch `develop`
+
+### Projects in the solution
+
+| Project | Package / version | Targets | Purpose |
+|---|---|---|---|
+| `MobileConcept.Core` | `MobileConcept.Core` 1.0.6 | `net10.0-android`, `net10.0-ios` | MVVM base classes, lifecycle, navigation, bootstrapper, tasks, RoP, image helpers |
+| `MobileConcept.Core.FCMPushNotifications` | `MobileConcept.Core.FCMPushNotifications` 1.0.0 | `net10.0-android`, `net10.0-ios` | Native Firebase Cloud Messaging push (see its README) |
+| `MobileConcept.Core.GameEngine` | `MobileConcept.Core.GameEngine` 0.1.0 | `net10.0` | 2.5D game engine core: scene contract, isometric projection, sprite animation, particles, bounded texture cache, swipe gestures |
+| `MobileConcept.Core.GameEngine.Maui` | 0.1.0 | `net10.0-android`, `net10.0-ios` | MAUI host for the engine: `GameCanvasView` (display-synced loop, GPU rendering: OpenGL on Android, Metal on iOS), native overlays, frame diagnostics |
+| `MobileConcept.Core.GameEngine.Tests` | not packed | `net10.0` | xUnit tests for the engine core |
+
+`GameEngine.props` pins .NET, MAUI and SkiaSharp versions for the game-engine projects only (.NET 10, MAUI 10.0.20, SkiaSharp 3.119.1); `MobileConcept.Core` keeps its own versions for its other consumers. The engine is documented in French in `MobileConcept.Core.GameEngine/README.md`; its first consumer is the SokobanWorld app.
 
 ## Build & Development Commands
 
@@ -17,8 +30,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 dotnet build MobileConcept.Core.sln
 
 # Build for specific target framework
-dotnet build MobileConcept.Core/MobileConcept.Core.csproj -f net9.0-android
-dotnet build MobileConcept.Core/MobileConcept.Core.csproj -f net9.0-ios
+dotnet build MobileConcept.Core/MobileConcept.Core.csproj -f net10.0-android
+dotnet build MobileConcept.Core/MobileConcept.Core.csproj -f net10.0-ios
+
+# Game engine: tests and MAUI host
+dotnet test MobileConcept.Core.GameEngine.Tests/MobileConcept.Core.GameEngine.Tests.csproj
+dotnet build MobileConcept.Core.GameEngine.Maui/MobileConcept.Core.GameEngine.Maui.csproj -f net10.0-android
+dotnet build MobileConcept.Core.GameEngine.Maui/MobileConcept.Core.GameEngine.Maui.csproj -f net10.0-ios
 
 # Build in Release mode
 dotnet build MobileConcept.Core.sln -c Release
@@ -36,7 +54,10 @@ dotnet pack MobileConcept.Core/MobileConcept.Core.csproj -c Release -o nupkgs/
 ```
 
 ### SDK Version
-The project requires .NET SDK 9.0.305 or later (defined in `global.json`).
+`global.json` requests SDK 9.0.305 with `rollForward: latestMajor`, so the installed .NET 10 SDK is used; all projects target .NET 10 and need the .NET 10 MAUI workloads (Android, iOS).
+
+### iOS Release builds after an engine change
+Delete the Release iOS `bin/` and `obj/` folders of the engine projects and of the consuming app before rebuilding. A stale incremental AOT output was observed to abort at launch (SIGABRT, no managed stack) even though the code was correct.
 
 ## High-Level Architecture
 
@@ -84,8 +105,9 @@ This provides an alternative to exception-based control flow for service layer o
 **Extensions/** - MAUI integration
 - `AppBuilderExtensions.cs`: Contains `UseMobileConcept()` which wires up platform lifecycle events and initializes the bootstrapper
 
-**Services/** - Navigation abstraction
+**Services/** - Navigation and app lifecycle
 - `NavigationService.cs`: Supports Shell, NavigationPage, FlyoutPage, TabbedPage patterns with type-safe generics
+- `IAppLifecycle` / `AppLifecycle`: app-wide `AppEnterForegroundAsync` / `AppEnterBackgroundAsync` events (singleton, raised by `UseMobileConcept()`), for cross-cutting services that are not ViewModels
 
 **ViewModels/** - MVVM foundation
 - `ViewModelBase.cs`: Base class with all lifecycle methods as virtual `Task`-returning methods
@@ -105,8 +127,8 @@ This provides an alternative to exception-based control flow for service layer o
 **Helpers/** - Platform utilities
 - `PlatformHelper.cs`: Static accessor for MAUI runtime objects (Application, Window, MainPage, Services)
 
-**Images/** - Media processing
-- `ImageRotationHelper.cs`: SkiaSharp-based EXIF-aware image rotation/resizing with two methods:
+**Images/Helpers/** - Media processing (namespace `MobileConcept.Core.Images.Helpers`)
+- `ImageRotationHelper.shared.cs`: SkiaSharp-based EXIF-aware image rotation/resizing with two methods:
   - `ResizeWithExifRotation()`: Exact dimensions with cropping (profile images)
   - `ResizeProportionalWithExifRotation()`: Max bounds preserving aspect ratio (gallery images)
 
@@ -125,7 +147,7 @@ Platform code uses preprocessor directives:
 #endif
 ```
 
-The project multi-targets `net9.0-android` and `net9.0-ios`, producing separate compiled assemblies.
+The project multi-targets `net10.0-android` and `net10.0-ios`, producing separate compiled assemblies.
 
 ### Service Registration Flow
 
