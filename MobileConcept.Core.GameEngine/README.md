@@ -170,3 +170,14 @@ Mesures en Release, Pixel 7a à 90 Hz (budget 11,1 ms par image), pleine résolu
 | Mémoire totale (plateau) | — | ≈ 456 Mo (graphique ≈ 244 Mo) |
 
 Reste commun aux deux API : des arrêts ponctuels de 30 à 90 ms (construction d'une bande du décor de la carte, ramasse-miettes soupçonné), à traiter dans l'application.
+
+## Ramasse-miettes et à-coups (12 novembre 2026)
+
+Sur Android, une collecte de génération 0 du runtime Mono coûte environ 50 ms (mesuré sur Pixel 7a) : à 90 Hz, cela fait plusieurs images perdues. Règles pour les jeux :
+
+- **Ne rien allouer par image** : réutiliser pinceaux, chemins, dégradés et tableaux ; pas de LINQ, de `ToString()` ni de tableaux temporaires dans `Update` et `Render`. Le moteur réutilise son `SKPictureRecorder` ; une `SKPicture` par image reste la seule allocation du mode carte graphique.
+- **Agrandir la zone des nouveaux objets** dans l'application : `MONO_GC_PARAMS=nursery-size=32m` dans un fichier d'environnement Android (`<AndroidEnvironment Include="…" />`).
+- **Collecter aux transitions** (changement d'écran, chargement d'un niveau) avec `GC.Collect(0)`, où la pause ne se voit pas.
+- **Mesurer** : avec `FrameDiagnostics`, la ligne `[FrameStats]` donne les octets alloués par image sur le fil d'interface, et chaque à-coup produit une ligne `[FrameSpike]` (mise à jour, enregistrement, `FrameAdvanced`, reste hors moteur, passages du ramasse-miettes par génération).
+
+Résultat dans Sokoban World : de 5,8 à 3,5 Kio alloués par image sur la carte, et des à-coups de 50 à 60 ms environ 6 fois par minute à un seul de 44 ms en 45 s de défilement (sans collecte), aucun en jeu sur le plateau.
