@@ -47,11 +47,13 @@ public sealed class GameCanvasView : ContentView, IDisposable
     public static bool FrameDiagnostics { get; set; }
     private readonly FrameDiagnosticsLog diagnostics = new();
     // Mode carte graphique : image enregistrée la plus récente, images à libérer, image en cours de lecture par le fil OpenGL.
-#if IOS
-    private readonly MetalSurface? gpuView;
-#else
-    private readonly SKGLView? gpuView;
-#endif
+    // Surface de la carte graphique : Metal (iOS), Vulkan ou OpenGL (Android). Remplaçable à chaud (repli Vulkan → OpenGL).
+    private View? gpuView;
+    private Action? invalidateGpu;
+    /// <summary>API graphique Android du mode carte graphique. Vulkan est essayé si l'appareil déclare Vulkan 1.1, avec repli automatique sur OpenGL en cas d'échec.</summary>
+    public static AndroidGpuApi AndroidGpu { get; set; } = AndroidGpuApi.OpenGL;
+    /// <summary>API réellement utilisée : « Metal », « Vulkan », « OpenGL » ou « processeur ».</summary>
+    public string RenderingApi { get; private set; } = "processeur";
     private readonly object pictures = new();
     private SKPicture? latest, playing;
     private readonly List<SKPicture> retired = [];
@@ -62,14 +64,14 @@ public sealed class GameCanvasView : ContentView, IDisposable
     {
         if (gpu)
         {
+            Content = layout;
 #if IOS
-            gpuView = new MetalSurface { InputTransparent = true };
-            gpuView.PaintSurface += (_, e) => PaintGpu(e.Surface, e.BackendRenderTarget.Width, e.BackendRenderTarget.Height);
+            UseGpuView(CreateMetal());
+#elif ANDROID
+            UseGpuView(AndroidGpu == AndroidGpuApi.Vulkan && Vulkan.VulkanTextureView.IsSupported(Android.App.Application.Context) ? CreateVulkan() : CreateOpenGL());
 #else
-            gpuView = new SKGLView { HasRenderLoop = false, IgnorePixelScaling = false, InputTransparent = true };
-            gpuView.PaintSurface += (_, e) => PaintGpu(e.Surface, e.BackendRenderTarget.Width, e.BackendRenderTarget.Height);
+            UseGpuView(CreateOpenGL());
 #endif
-            layout.Children.Add(gpuView); Content = layout;
             Unloaded += OnUnloaded;
             diagnostics.Gpu = true;
             return;
@@ -95,7 +97,7 @@ public sealed class GameCanvasView : ContentView, IDisposable
         canvas.Scale = 1 / ratio;
         AbsoluteLayout.SetLayoutBounds(overlay, new Rect(0, 0, width, height));
     }
-    public void InvalidateSurface() { if (gpuView is not null) { Record(); gpuView.InvalidateSurface(); return; } canvas.InvalidateSurface(); if (overlayAttached) overlay.InvalidateSurface(); }
+    public void InvalidateSurface() { if (gpuView is not null) { Record(); invalidateGpu?.Invoke(); return; } canvas.InvalidateSurface(); if (overlayAttached) overlay.InvalidateSurface(); }
     /// <summary>La couche pleine résolution n'existe (surface et texture natives) que tant que la scène en a besoin.</summary>
     private void SyncOverlay(bool wanted)
     {
@@ -111,6 +113,11 @@ public sealed class GameCanvasView : ContentView, IDisposable
         frames ??= new DisplayFrameSource(Dispatcher, Tick);
         frames.MaximumFramesPerSecond = MaximumFramesPerSecond;
         previous = -1; frames.Start();
+#if ANDROID
+        // Android 15 et plus : sans catégorie haute, le système ramène une vue « normale » à 60 Hz dès qu'on ne touche plus l'écran.
+        if (MaximumFramesPerSecond > 60 && OperatingSystem.IsAndroidVersionAtLeast(35) && gpuView?.Handler?.PlatformView is Android.Views.View native)
+            native.RequestedFrameRate = Android.Views.View.RequestedFrameRateCategoryHigh;
+#endif
     }
     public void Stop() { frames?.Stop(); previous = -1; }
     private void Tick(double now)
@@ -120,7 +127,7 @@ public sealed class GameCanvasView : ContentView, IDisposable
         if (Scene is { } scene && dt > 0) scene.Update((float)dt);
         if (FrameDiagnostics && previous >= 0) diagnostics.Tick(now, now - previous, dt > 0 ? 1 : 0, Scene is IOverlayScene);
         previous = now;
-        if (gpuView is not null) { Record(); gpuView.InvalidateSurface(); FrameAdvanced?.Invoke(this, EventArgs.Empty); return; }
+        if (gpuView is not null) { Record(); invalidateGpu?.Invoke(); FrameAdvanced?.Invoke(this, EventArgs.Empty); return; }
         bool hasOverlay = Scene is IOverlayScene;
         SyncOverlay(hasOverlay);
         canvas.InvalidateSurface(); if (hasOverlay) overlay.InvalidateSurface();
@@ -153,6 +160,44 @@ public sealed class GameCanvasView : ContentView, IDisposable
         if (FrameDiagnostics) diagnostics.Painted(true, Stopwatch.GetElapsedTime(start).TotalMilliseconds, e.Info.Width, e.Info.Height);
         target.Restore();
     }
+    private void UseGpuView(View view)
+    {
+        if (gpuView is not null) { layout.Children.Remove(gpuView); gpuView.Handler?.DisconnectHandler(); }
+        gpuView = view;
+        layout.Children.Add(view);
+        if (sizeWidth > 0) AbsoluteLayout.SetLayoutBounds(view, new Rect(0, 0, sizeWidth, sizeHeight));
+    }
+#if IOS
+    private View CreateMetal()
+    {
+        var view = new MetalSurface { InputTransparent = true };
+        view.PaintSurface += (_, e) => PaintGpu(e.Surface, e.BackendRenderTarget.Width, e.BackendRenderTarget.Height);
+        invalidateGpu = view.InvalidateSurface; RenderingApi = "Metal";
+        return view;
+    }
+#endif
+    private View CreateOpenGL()
+    {
+        var view = new SKGLView { HasRenderLoop = false, IgnorePixelScaling = false, InputTransparent = true };
+        view.PaintSurface += (_, e) => PaintGpu(e.Surface, e.BackendRenderTarget.Width, e.BackendRenderTarget.Height);
+        invalidateGpu = view.InvalidateSurface; RenderingApi = "OpenGL";
+        return view;
+    }
+#if ANDROID
+    private View CreateVulkan()
+    {
+        var view = new VulkanSurface { InputTransparent = true };
+        view.PaintSurface += (surface, width, height) => PaintGpu(surface, width, height);
+        // Échec Vulkan (pilote, surface) : bascule sur OpenGL, sur le fil d'interface.
+        view.RenderingFailed += error =>
+        {
+            Console.WriteLine($"[GameCanvasView] Vulkan indisponible, repli sur OpenGL : {error.Message}");
+            Dispatcher.Dispatch(() => { if (!disposed && ReferenceEquals(gpuView, view)) UseGpuView(CreateOpenGL()); });
+        };
+        invalidateGpu = view.InvalidateSurface; RenderingApi = "Vulkan";
+        return view;
+    }
+#endif
     /// <summary>Fil d'interface : la scène s'enregistre en pixels physiques (les scènes qui lisent l'échelle du canvas gardent leurs choix de netteté).</summary>
     private void Record()
     {
@@ -176,7 +221,7 @@ public sealed class GameCanvasView : ContentView, IDisposable
                 if (!ReferenceEquals(retired[i], playing)) { retired[i].Dispose(); retired.RemoveAt(i); }
         }
     }
-    /// <summary>Fil OpenGL sur Android, fil d'interface sur iOS (Metal) : rejoue la dernière image enregistrée.</summary>
+    /// <summary>Fil de rendu (OpenGL ou Vulkan) sur Android, fil d'interface sur iOS (Metal) : rejoue la dernière image enregistrée.</summary>
     private void PaintGpu(SKSurface surface, int pixelWidth, int pixelHeight)
     {
         var target = surface.Canvas;
@@ -209,3 +254,6 @@ public sealed class GameCanvasView : ContentView, IDisposable
         lock (pictures) { latest?.Dispose(); latest = null; foreach (var p in retired) p.Dispose(); retired.Clear(); }
     }
 }
+
+/// <summary>API graphique du mode carte graphique sur Android.</summary>
+public enum AndroidGpuApi { OpenGL, Vulkan }

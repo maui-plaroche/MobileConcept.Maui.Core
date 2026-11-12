@@ -13,6 +13,8 @@ public static class AppBuilderExtensions
         builder.UseSkiaSharp();
 #if IOS
         builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<MetalSurface, MetalSurfaceHandler>());
+#elif ANDROID
+        builder.ConfigureMauiHandlers(handlers => handlers.AddHandler<VulkanSurface, VulkanSurfaceHandler>());
 #endif
         builder.Services.TryAddSingleton<IWindowEffects, NativeWindowEffects>();
         return builder;

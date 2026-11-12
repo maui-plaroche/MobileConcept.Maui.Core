@@ -34,7 +34,8 @@ internal sealed class DisplayFrameSource : IDisposable
 
     public bool IsRunning => running;
 
-    /// <summary>Fréquence maximale demandée à l'écran (iOS ProMotion). 0 : fréquence par défaut du système.</summary>
+    /// <summary>Fréquence maximale demandée à l'écran (iPhone ProMotion, Android 90/120 Hz). 0 : fréquence par défaut du système.
+    /// Sur Android, la demande reste plafonnée par le réglage « Affichage fluide » de l'utilisateur.</summary>
     public int MaximumFramesPerSecond { get; set; }
 
     public void Start()
@@ -42,6 +43,7 @@ internal sealed class DisplayFrameSource : IDisposable
         if (running) return;
         running = true;
 #if ANDROID
+        RequestDisplayMode(MaximumFramesPerSecond);
         Android.Views.Choreographer.Instance!.PostFrameCallback(callback);
 #elif IOS
         link = CoreAnimation.CADisplayLink.Create(OnLink);
@@ -62,6 +64,7 @@ internal sealed class DisplayFrameSource : IDisposable
         running = false;
 #if ANDROID
         Android.Views.Choreographer.Instance!.RemoveFrameCallback(callback);
+        RequestDisplayMode(0);
 #elif IOS
         link?.Invalidate(); link?.Dispose(); link = null;
 #else
@@ -78,6 +81,30 @@ internal sealed class DisplayFrameSource : IDisposable
     }
 
 #if ANDROID
+    /// <summary>
+    /// Demande à la fenêtre le mode d'écran le plus rapide sans dépasser <paramref name="maxFps"/> (même résolution) ;
+    /// 0 rend la décision au système (hors du jeu, économie de batterie).
+    /// </summary>
+    private static void RequestDisplayMode(int maxFps)
+    {
+        var activity = Microsoft.Maui.ApplicationModel.Platform.CurrentActivity;
+        var window = activity?.Window;
+        var display = OperatingSystem.IsAndroidVersionAtLeast(30) ? activity?.Display : window?.WindowManager?.DefaultDisplay;
+        if (window is null || display is null) return;
+        int modeId = 0;
+        if (maxFps > 0 && display.GetMode() is { } current && display.GetSupportedModes() is { } modes)
+        {
+            float best = 0;
+            foreach (var mode in modes)
+                if (mode.PhysicalWidth == current.PhysicalWidth && mode.PhysicalHeight == current.PhysicalHeight
+                    && mode.RefreshRate <= maxFps + .5f && mode.RefreshRate > best) { best = mode.RefreshRate; modeId = mode.ModeId; }
+        }
+        var attributes = window.Attributes;
+        if (attributes is null || attributes.PreferredDisplayModeId == modeId) return;
+        attributes.PreferredDisplayModeId = modeId;
+        window.Attributes = attributes;
+    }
+
     private sealed class Callback(DisplayFrameSource owner) : Java.Lang.Object, Android.Views.Choreographer.IFrameCallback
     {
         public void DoFrame(long frameTimeNanos)
