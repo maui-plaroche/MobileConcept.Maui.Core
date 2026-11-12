@@ -1,6 +1,6 @@
 # MobileConcept.Core.GameEngine — moteur 2.5D
 
-**Statut :** validé — version 0.1.0, .NET 10 / MAUI 10.0.20 / SkiaSharp 3.119.1. Boucle calée sur l'écran et rendu par la carte graphique (OpenGL sur Android, Metal sur iOS) depuis le 11 novembre 2026.
+**Statut :** validé — version 0.1.0, .NET 10 / MAUI 10.0.20 / SkiaSharp 3.119.1. Boucle calée sur l'écran et rendu par la carte graphique (OpenGL sur Android, Metal sur iOS) depuis le 11 novembre 2026 ; Vulkan sur Android en option et 90 Hz sur Android depuis le 12 novembre 2026.
 
 Moteur maison en C# construit depuis zéro. SkiaSharp est la bibliothèque de dessin ; MAUI est l'hôte mobile. Aucun concept Sokoban dans ces modules.
 
@@ -98,24 +98,75 @@ Même architecture sur Android et iOS : à chaque image de l'écran, la scène a
 
 Choix : enregistrer la scène plutôt que la dessiner directement sur le fil OpenGL, pour que les règles, les gestes et les scènes existantes restent sur un seul fil ; Metal sur iOS dès maintenant, OpenGL y étant déclaré obsolète par Apple ; OpenGL sur Android (`SKGLView` de SkiaSharp MAUI), Vulkan n'étant pas nécessaire aux mesures actuelles. Les images enregistrées ne sont libérées que lorsque le fil de dessin ne les lit plus.
 
-Mesures en Release (Sokoban World, 11 novembre 2026) :
+Mesures en Release (Sokoban World, mises à jour le 12 novembre 2026, pleine résolution) :
 
-| Scène | Processeur, minuteur | Carte graphique, écran |
+| Appareil, scène | Départ : processeur, minuteur | Actuel : carte graphique, boucle calée sur l'écran |
 |---|---|---|
-| Pixel 7a, carte | 30 à 56 i/s, image réduite 576×1280 | 57 à 60 i/s, 1080×2400 (OpenGL) |
-| Pixel 7a, plateau | 59 à 60 i/s irréguliers, 875×1944 | 60 i/s réguliers, 1080×2400 (OpenGL) |
+| Pixel 7a, carte | 30 à 56 i/s, image réduite 576×1280 | 90 i/s, 1080×2400 (OpenGL ou Vulkan) |
+| Pixel 7a, plateau | 59 à 60 i/s irréguliers, 875×1944 | 89 à 90 i/s, 1080×2400 (OpenGL ou Vulkan) |
 | iPhone 17, carte | 56 i/s irréguliers, image réduite 588×1280 | 120 i/s, 1206×2622 (Metal) |
-| iPhone 17, plateau | 50 à 56 i/s irréguliers | 120 i/s, 1206×2622 |
+| iPhone 17, plateau | 50 à 56 i/s irréguliers | 120 i/s, 1206×2622 (Metal) |
 | Images à zéro ou deux pas | 6 à 19 % | 0 % |
 
-| Coût d'une image (médiane) | Pixel 7a | iPhone 17 |
-|---|---|---|
-| Enregistrement de la scène | 0,5 à 2 ms | 0,3 à 0,4 ms |
-| Relecture par la carte graphique | 3 à 6 ms | 1 à 1,4 ms |
-| Mode processeur (image réduite) | 8 à 18 ms | 1,2 à 3,5 ms |
+| Coût d'une image (médiane) | Pixel 7a, OpenGL | Pixel 7a, Vulkan | iPhone 17, Metal |
+|---|---|---|---|
+| Fréquence de l'écran | 90 Hz (11,1 ms) | 90 Hz (11,1 ms) | 120 Hz (8,3 ms) |
+| Enregistrement de la scène (fil d'interface) | 0,6 à 1,9 ms | 1 à 1,8 ms | 0,3 à 0,4 ms |
+| Relecture par la carte graphique | 2,4 à 4,3 ms | 2,4 à 3,7 ms | 1 à 1,4 ms |
+| Mode processeur, pour comparaison (image réduite, 60 Hz) | 8 à 18 ms | — | 1,2 à 3,5 ms |
+
+Le Pixel n'atteint 90 Hz que si « Affichage fluide » est activé dans ses réglages (voir « 90 Hz sur Android ») ; sinon 60 i/s, avec les mêmes coûts. Vulkan est une option (voir « Vulkan sur Android »), OpenGL reste le défaut.
 
 Première image sous Metal : environ 0,5 s, le temps que Metal prépare ses ressources (à couvrir par l'écran de lancement).
 
 Mesure intégrée : `GameCanvasView.FrameDiagnostics = true` écrit une ligne `[FrameStats]` toutes les 5 s (cadence des images, intervalles, temps de dessin ; en mode carte graphique, temps d'enregistrement et de relecture). Lecture : `adb logcat | grep FrameStats` sur Android, `xcrun devicectl device process launch --console …` sur iOS. À n'activer que pour les mesures (Sokoban World la compile seulement avec `-p:FrameStats=true`).
 
 Piège : après une modification du moteur, nettoyer `bin/obj` Release iOS de l'app et du moteur avant de recompiler ; une sortie AOT périmée plante au lancement sans pile managée.
+
+## Vulkan sur Android (essai du 12 novembre 2026)
+
+`GameCanvasView.AndroidGpu = AndroidGpuApi.Vulkan` (avant de créer la vue) remplace OpenGL par Vulkan sur Android si l'appareil déclare Vulkan 1.1, avec repli automatique sur OpenGL si l'initialisation ou le rendu échoue. Par défaut : OpenGL. `RenderingApi` indique l'API réellement utilisée.
+
+Choix techniques :
+
+1. **Aucun package tiers** : appels directs à `libvulkan.so` (le chargeur Android exporte le cœur et les extensions de surface et de swapchain) et à `libandroid.so` (`ANativeWindow_fromSurface`), dans `Vulkan/VulkanNative.cs`. SharpVk, non maintenu, est écarté.
+2. **SkiaSharp 3.119.1 tel quel** : `GRContext.CreateVulkan` avec un `GRVkBackendContext` dont la fonction de chargement (`vkGetDeviceProcAddr`, puis `vkGetInstanceProcAddr`) est fournie en C#, comme le fait Avalonia (licence MIT, consulté pour la méthode).
+3. **Vue** : `VulkanTextureView` (TextureView, comme le `SKGLView` de SkiaSharp, donc composée comme une vue ordinaire) et `VulkanSurface` + handler MAUI. Tout le travail Vulkan sur un fil de rendu dédié ; la scène reste enregistrée en `SKPicture` sur le fil d'interface, exactement comme avec OpenGL et Metal.
+4. **Image par image** (`VulkanRenderer`) : acquisition d'une image de la swapchain avec attente CPU sur une barrière (SkiaSharp ne sait pas attendre un sémaphore), dessin Skia directement dans cette image, puis une barrière `COLOR_ATTACHMENT_OPTIMAL → PRESENT_SRC_KHR` soumise sur la même file que Skia et présentation qui attend sa fin. FIFO (synchronisé sur l'écran), 3 images, une image en vol.
+5. **Image de la swapchain enveloppée comme texture** (`GRBackendTexture`) dès que l'usage `SAMPLED` est autorisé : en simple cible de rendu (`GRBackendRenderTarget`), Skia plante (pointeur nul dans `flush`) au premier mode de fusion qui relit la cible (`SoftLight` sur le plateau de Sokoban World).
+6. **Cycle de vie** : destruction de la surface (application en arrière-plan) traitée de façon synchrone sur le fil de rendu avant de rendre la main à Android ; swapchain recréée au redimensionnement et sur `VK_ERROR_OUT_OF_DATE_KHR` / `VK_SUBOPTIMAL_KHR`.
+
+Mesures en Release sur Pixel 7a (Sokoban World, 60 Hz, pleine résolution 1080×2400) :
+
+| Scène | OpenGL | Vulkan |
+|---|---|---|
+| Carte, défilement long : images par seconde | 57 à 60 | 60 |
+| Carte : relecture d'une image (médiane, p90) | 3,1 à 5 ms, p90 ≈ 5 à 6,5 ms | 3,1 à 3,4 ms, p90 ≈ 4,6 à 5 ms |
+| Carte : plus long intervalle entre deux images | jusqu'à 66 ms | 33 ms |
+| Plateau : images par seconde | 60 | 60 |
+| Plateau : relecture d'une image (médiane) | 3,2 à 5,9 ms | 4,7 à 6,1 ms |
+| Mémoire totale, 8 allers-retours carte ↔ jeu | ≈ 405 Mo (graphique ≈ 194 Mo), stable | ≈ 435 Mo (graphique ≈ 234 Mo), stable |
+| Arrière-plan puis retour | — | correct (surface détruite et recréée) |
+
+Conclusion de l'essai : Vulkan fonctionne et tient 60 i/s, avec une relecture de la carte un peu plus régulière ; pas de gain visible à 60 Hz sur ce téléphone, et environ 30 Mo de mémoire graphique en plus. OpenGL reste le défaut tant que Vulkan n'a pas été validé sur d'autres appareils Android (pilotes inégaux). Le chargeur .NET affiche au démarrage « Shared library 'libvulkan.so' not loaded, p/invoke may fail » : avertissement sans effet, la bibliothèque système est trouvée à l'appel.
+
+## 90 Hz sur Android (12 novembre 2026)
+
+Cause du plafond à 60 i/s mesuré jusque-là sur le Pixel 7a : le réglage utilisateur « Affichage fluide » était désactivé (vote système `PRIORITY_USER_SETTING_PEAK_REFRESH_RATE`, maximum 60 Hz), prioritaire sur toute demande d'une application. Une fois le réglage activé, le moteur demande la fréquence lui-même :
+
+1. **Mode d'écran de la fenêtre** (`DisplayFrameSource`, au `Start`) : `WindowManager.LayoutParams.PreferredDisplayModeId` = mode le plus rapide de même résolution sans dépasser `MaximumFramesPerSecond` ; remis à 0 (choix du système) au `Stop`, pour la batterie hors du jeu.
+2. **Catégorie de fréquence de la vue** (Android 15 et plus) : `View.RequestedFrameRate = RequestedFrameRateCategoryHigh` sur la surface de rendu, sinon le système ramène une vue « normale » à 60 Hz dès qu'on ne touche plus l'écran.
+3. La boucle (Choreographer) et la swapchain Vulkan (FIFO) suivent ensuite la fréquence de l'écran sans autre changement.
+
+Mesures en Release, Pixel 7a à 90 Hz (budget 11,1 ms par image), pleine résolution 1080×2400 :
+
+| Scène | OpenGL | Vulkan |
+|---|---|---|
+| Carte au repos | 90 i/s ; relecture 3,2 à 3,3 ms | 90 i/s ; relecture 2,8 ms |
+| Carte en défilement long | 89 à 90 i/s ; relecture 2,4 à 3,3 ms | 89 à 90 i/s ; relecture 2,4 à 2,8 ms |
+| Plateau en jeu | 89 à 90 i/s ; relecture 3 à 4,3 ms | 89 à 90 i/s ; relecture 3,5 à 3,7 ms |
+| Enregistrement de la scène (fil d'interface) | 0,6 à 1,9 ms | 1 à 1,8 ms |
+| Images à zéro ou deux pas | 0 % | 0 % |
+| Mémoire totale (plateau) | — | ≈ 456 Mo (graphique ≈ 244 Mo) |
+
+Reste commun aux deux API : des arrêts ponctuels de 30 à 90 ms (construction d'une bande du décor de la carte, ramasse-miettes soupçonné), à traiter dans l'application.

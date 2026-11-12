@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `MobileConcept.Core` | `MobileConcept.Core` 1.0.6 | `net10.0-android`, `net10.0-ios` | MVVM base classes, lifecycle, navigation, bootstrapper, tasks, RoP, image helpers |
 | `MobileConcept.Core.FCMPushNotifications` | `MobileConcept.Core.FCMPushNotifications` 1.0.0 | `net10.0-android`, `net10.0-ios` | Native Firebase Cloud Messaging push (see its README) |
 | `MobileConcept.Core.GameEngine` | `MobileConcept.Core.GameEngine` 0.1.0 | `net10.0` | 2.5D game engine core: scene contract, isometric projection, sprite animation, particles, bounded texture cache, swipe gestures |
-| `MobileConcept.Core.GameEngine.Maui` | 0.1.0 | `net10.0-android`, `net10.0-ios` | MAUI host for the engine: `GameCanvasView` (display-synced loop, GPU rendering: OpenGL on Android, Metal on iOS), native overlays, frame diagnostics |
+| `MobileConcept.Core.GameEngine.Maui` | 0.1.0 | `net10.0-android`, `net10.0-ios` | MAUI host for the engine: `GameCanvasView` (display-synced loop, GPU rendering: Metal on iOS, OpenGL or opt-in Vulkan on Android, up to 120 Hz), native overlays, frame diagnostics |
 | `MobileConcept.Core.GameEngine.Tests` | not packed | `net10.0` | xUnit tests for the engine core |
 
 `GameEngine.props` pins .NET, MAUI and SkiaSharp versions for the game-engine projects only (.NET 10, MAUI 10.0.20, SkiaSharp 3.119.1); `MobileConcept.Core` keeps its own versions for its other consumers. The engine is documented in French in `MobileConcept.Core.GameEngine/README.md`; its first consumer is the SokobanWorld app.

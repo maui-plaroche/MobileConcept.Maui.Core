@@ -9,7 +9,7 @@ Essential core library for .NET MAUI applications. Provides utilities, base clas
 | `MobileConcept.Core` | 1.0.6 | MVVM base classes, lifecycle, navigation, bootstrapper, tasks, image helpers (this page) | this README |
 | `MobileConcept.Core.FCMPushNotifications` | 1.0.0 | Native Firebase Cloud Messaging push for iOS and Android | [README](MobileConcept.Core.FCMPushNotifications/README.md) |
 | `MobileConcept.Core.GameEngine` | 0.1.0 | 2.5D game engine core on SkiaSharp (scene contract, projection, sprites, particles, texture cache) | [README (French)](MobileConcept.Core.GameEngine/README.md) |
-| `MobileConcept.Core.GameEngine.Maui` | 0.1.0 | MAUI host for the engine: display-synced loop, GPU rendering (OpenGL on Android, Metal on iOS), native overlays | [README (French)](MobileConcept.Core.GameEngine.Maui/README.md) |
+| `MobileConcept.Core.GameEngine.Maui` | 0.1.0 | MAUI host for the engine: display-synced loop up to 120 Hz, GPU rendering (Metal on iOS, OpenGL or Vulkan on Android), native overlays | [README (French)](MobileConcept.Core.GameEngine.Maui/README.md) |
 
 ## Installation
 ```bash
