@@ -43,6 +43,10 @@ public sealed class GameCanvasView : ContentView, IDisposable
     public int MaxRasterPixels { get => maxRasterPixels; set { if (maxRasterPixels == value) return; maxRasterPixels = value; ApplyRaster(); } }
     private double sizeWidth, sizeHeight;
     public event EventHandler? FrameAdvanced;
+    private int presentedFrames;
+    /// <summary>Images réellement dessinées à l'écran depuis la création de la vue (la surface de la carte graphique peut mettre
+    /// plusieurs centaines de millisecondes à apparaître au démarrage). Lisible depuis n'importe quel fil.</summary>
+    public int PresentedFrames => Volatile.Read(ref presentedFrames);
     /// <summary>Mesure de la cadence et du temps de dessin, écrite sur la console toutes les 5 s. Désactivée par défaut, pour les mesures seulement.</summary>
     public static bool FrameDiagnostics { get; set; }
     private readonly FrameDiagnosticsLog diagnostics = new();
@@ -161,6 +165,7 @@ public sealed class GameCanvasView : ContentView, IDisposable
         target.Scale(e.Info.Width / (float)Width, e.Info.Height / (float)Height);
         long start = FrameDiagnostics ? Stopwatch.GetTimestamp() : 0;
         Scene?.Render(target, new SKSize((float)Width, (float)Height));
+        if (Scene is not null) Interlocked.Increment(ref presentedFrames);
         if (FrameDiagnostics) diagnostics.Painted(false, Stopwatch.GetElapsedTime(start).TotalMilliseconds, e.Info.Width, e.Info.Height);
         target.Restore();
     }
@@ -253,6 +258,7 @@ public sealed class GameCanvasView : ContentView, IDisposable
             if (MathF.Abs(fit - 1) > .001f) target.Scale(fit);
             target.DrawPicture(picture);
             target.Restore();
+            Interlocked.Increment(ref presentedFrames);
         }
         target.Flush();
         if (FrameDiagnostics) diagnostics.Painted(false, Stopwatch.GetElapsedTime(start).TotalMilliseconds, pixelWidth, pixelHeight);
