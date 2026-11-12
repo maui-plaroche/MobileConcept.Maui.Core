@@ -39,6 +39,13 @@ internal sealed class FrameDiagnosticsLog
         if (now - windowStart >= WindowSeconds) { Flush(now - windowStart); windowStart = now; }
     }
 
+    private readonly double[] allocations = new double[Capacity];
+    private int allocationCount;
+    /// <summary>Octets alloués par le tic (fil d'interface) : c'est ce débit qui déclenche le ramasse-miettes.</summary>
+    public void Allocated(long bytes)
+    {
+        lock (this) if (allocationCount < Capacity) allocations[allocationCount++] = bytes / 1024.0;
+    }
     private void PaintedCore(bool overlay, double milliseconds, int width, int height)
     {
         if (overlay)
@@ -59,8 +66,13 @@ internal sealed class FrameDiagnosticsLog
         int totalSteps = stepCounts[0] + stepCounts[1] + stepCounts[2] + stepCounts[3];
         string overlayPart = overlayCount > 0 ? FormattableString.Invariant($" | {(Gpu ? "enregistrement" : "héros")} {overlayWidth}x{overlayHeight} {Stats(overlayDraws, overlayCount)}") : "";
         string line = FormattableString.Invariant($"[FrameStats] {(overlayScene ? "carte" : "plateau")} {seconds:0.0}s | tics {ticks / seconds:0.0}/s intervalle {Stats(tickIntervals, ticks)} | pas par tic 0:{Percent(stepCounts[0], totalSteps)} 1:{Percent(stepCounts[1], totalSteps)} 2:{Percent(stepCounts[2], totalSteps)} 3+:{Percent(stepCounts[3], totalSteps)} | dessins {(paints + 1) / seconds:0.0}/s intervalle {Stats(paintIntervals, paints)} | {(Gpu ? "GPU" : "fond")} {baseWidth}x{baseHeight} {Stats(baseDraws, baseCount)}{overlayPart}");
+        if (allocationCount > 0)
+        {
+            double total = 0; for (int i = 0; i < allocationCount; i++) total += allocations[i];
+            line += FormattableString.Invariant($" | alloué par image {Stats(allocations, allocationCount).Replace(" ms", " Kio")}, {total / 1024 / seconds:0.00} Mio/s");
+        }
         Console.WriteLine(line);
-        ticks = paints = baseCount = overlayCount = 0;
+        ticks = paints = baseCount = overlayCount = allocationCount = 0;
         Array.Clear(stepCounts);
     }
 

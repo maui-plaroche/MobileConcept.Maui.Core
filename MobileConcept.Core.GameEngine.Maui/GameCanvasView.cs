@@ -57,6 +57,7 @@ public sealed class GameCanvasView : ContentView, IDisposable
     private readonly object pictures = new();
     private SKPicture? latest, playing;
     private readonly List<SKPicture> retired = [];
+    private readonly SKPictureRecorder recorder = new();
     private float latestScale = 1;
     public bool UsesGpu => gpuView is not null;
 
@@ -120,14 +121,29 @@ public sealed class GameCanvasView : ContentView, IDisposable
 #endif
     }
     public void Stop() { frames?.Stop(); previous = -1; }
+    // Mesure des à-coups (FrameDiagnostics) : travail du tic précédent et passages du ramasse-miettes.
+    private double lastUpdateMs, lastRecordMs, lastAdvancedMs, lastFrameInterval;
+    private int lastGc0, lastGc1, lastGc2;
     private void Tick(double now)
     {
         // Pas variable, égal au temps réel entre deux images de l'écran : une image avance toujours d'exactement ce qu'elle affiche.
         double dt = previous < 0 ? 0 : Math.Clamp(now - previous, 0, MaxFrameSeconds);
+        if (FrameDiagnostics && previous >= 0) TraceSpike(now - previous);
+        long t0 = FrameDiagnostics ? Stopwatch.GetTimestamp() : 0;
+        long allocatedBefore = FrameDiagnostics ? GC.GetAllocatedBytesForCurrentThread() : 0;
         if (Scene is { } scene && dt > 0) scene.Update((float)dt);
+        if (FrameDiagnostics) lastUpdateMs = Stopwatch.GetElapsedTime(t0).TotalMilliseconds;
         if (FrameDiagnostics && previous >= 0) diagnostics.Tick(now, now - previous, dt > 0 ? 1 : 0, Scene is IOverlayScene);
         previous = now;
-        if (gpuView is not null) { Record(); invalidateGpu?.Invoke(); FrameAdvanced?.Invoke(this, EventArgs.Empty); return; }
+        if (gpuView is not null)
+        {
+            long t1 = FrameDiagnostics ? Stopwatch.GetTimestamp() : 0;
+            Record(); invalidateGpu?.Invoke();
+            long t2 = FrameDiagnostics ? Stopwatch.GetTimestamp() : 0;
+            FrameAdvanced?.Invoke(this, EventArgs.Empty);
+            if (FrameDiagnostics) { lastRecordMs = Stopwatch.GetElapsedTime(t1, t2).TotalMilliseconds; lastAdvancedMs = Stopwatch.GetElapsedTime(t2).TotalMilliseconds; diagnostics.Allocated(GC.GetAllocatedBytesForCurrentThread() - allocatedBefore); }
+            return;
+        }
         bool hasOverlay = Scene is IOverlayScene;
         SyncOverlay(hasOverlay);
         canvas.InvalidateSurface(); if (hasOverlay) overlay.InvalidateSurface();
@@ -205,7 +221,7 @@ public sealed class GameCanvasView : ContentView, IDisposable
         float density = (float)Math.Max(1, DeviceDisplay.Current.MainDisplayInfo.Density);
         var size = new SKSize((float)Width, (float)Height);
         long start = FrameDiagnostics ? Stopwatch.GetTimestamp() : 0;
-        using var recorder = new SKPictureRecorder();
+        // Enregistreur réutilisé d'une image à l'autre : une allocation de moins par image (le ramasse-miettes Android coûte cher).
         var canvas = recorder.BeginRecording(SKRect.Create(size.Width * density, size.Height * density));
         canvas.Scale(density);
         scene.Render(canvas, size);
@@ -242,6 +258,20 @@ public sealed class GameCanvasView : ContentView, IDisposable
         if (FrameDiagnostics) diagnostics.Painted(false, Stopwatch.GetElapsedTime(start).TotalMilliseconds, pixelWidth, pixelHeight);
         lock (pictures) playing = null;
     }
+    /// <summary>Une ligne [FrameSpike] par intervalle d'image anormalement long : ce que le moteur a fait au tic précédent, le reste étant hors du moteur.</summary>
+    private void TraceSpike(double interval)
+    {
+        int g0 = GC.CollectionCount(0), g1 = GC.CollectionCount(1), g2 = GC.CollectionCount(2);
+        // Intervalle normal : médiane glissante grossière (premier intervalle mesuré, puis mise à jour lente).
+        lastFrameInterval = lastFrameInterval <= 0 ? interval : lastFrameInterval * .98 + Math.Min(interval, lastFrameInterval * 1.5) * .02;
+        if (interval > Math.Max(.025, lastFrameInterval * 2.2))
+        {
+            double ms = interval * 1000, engine = lastUpdateMs + lastRecordMs + lastAdvancedMs;
+            double pause = GC.GetTotalPauseDuration().TotalMilliseconds;
+            Console.WriteLine(FormattableString.Invariant($"[FrameSpike] {ms:0.0} ms | pause GC cumulée {pause:0} ms | update {lastUpdateMs:0.0} | enregistrement {lastRecordMs:0.0} | FrameAdvanced {lastAdvancedMs:0.0} | hors moteur {Math.Max(0, ms - engine - lastFrameInterval * 1000):0.0} | GC gen0 +{g0 - lastGc0} gen1 +{g1 - lastGc1} gen2 +{g2 - lastGc2}"));
+        }
+        lastGc0 = g0; lastGc1 = g1; lastGc2 = g2;
+    }
     private void OnUnloaded(object? sender, EventArgs e) => Stop();
     public void Dispose()
     {
@@ -252,6 +282,7 @@ public sealed class GameCanvasView : ContentView, IDisposable
         Scene = null; FrameAdvanced = null;
         canvas.Handler?.DisconnectHandler(); overlay.Handler?.DisconnectHandler(); gpuView?.Handler?.DisconnectHandler(); Handler?.DisconnectHandler();
         lock (pictures) { latest?.Dispose(); latest = null; foreach (var p in retired) p.Dispose(); retired.Clear(); }
+        recorder.Dispose();
     }
 }
 
