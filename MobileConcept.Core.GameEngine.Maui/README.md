@@ -8,7 +8,7 @@ Intégration : référencer ce projet et `MobileConcept.Core`, puis appeler `Use
 
 | Fichier | Rôle |
 |---|---|
-| `GameCanvasView.cs` | Vue de jeu. Mode processeur (raster borné et couche pleine résolution `IOverlayScene`) ou mode carte graphique (`gpu: true` : scène enregistrée en `SKPicture` sur le fil d'interface, relue en pleine résolution). `Start()`, `Stop()`, `MaximumFramesPerSecond`, `FrameDiagnostics`. |
+| `GameCanvasView.cs` | Vue de jeu. Mode processeur (raster borné et couche pleine résolution `IOverlayScene`) ou mode carte graphique (`gpu: true` : scène enregistrée en `SKPicture` sur le fil d'interface, relue en pleine résolution). `Start()`, `Stop()`, `MaximumFramesPerSecond`, `FrameDiagnostics`, `PresentedFrames` (images réellement affichées), `AndroidGpu` / `RenderingApi`. |
 | `DisplayFrameSource.cs` | Images déclenchées par l'écran : Choreographer sur Android, CADisplayLink sur iOS (plage 60 à `MaximumFramesPerSecond`). Minuteur à 1/60 s en repli sur les autres plateformes. |
 | `MetalSurface.cs` | iOS : composant MAUI et son handler qui hébergent `SKMetalView` (dessin à la demande, pas de boucle propre). |
 | `VulkanSurface.cs`, `Vulkan/` | Android : surface Skia sur Vulkan (essai, option `GameCanvasView.AndroidGpu`) — appels natifs `libvulkan.so`, swapchain, fil de rendu, repli OpenGL. |

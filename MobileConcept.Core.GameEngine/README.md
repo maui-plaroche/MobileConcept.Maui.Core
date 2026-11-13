@@ -177,7 +177,17 @@ Sur Android, une collecte de génération 0 du runtime Mono coûte environ 50 ms
 
 - **Ne rien allouer par image** : réutiliser pinceaux, chemins, dégradés et tableaux ; pas de LINQ, de `ToString()` ni de tableaux temporaires dans `Update` et `Render`. Le moteur réutilise son `SKPictureRecorder` ; une `SKPicture` par image reste la seule allocation du mode carte graphique.
 - **Agrandir la zone des nouveaux objets** dans l'application : `MONO_GC_PARAMS=nursery-size=32m` dans un fichier d'environnement Android (`<AndroidEnvironment Include="…" />`).
-- **Collecter aux transitions** (changement d'écran, chargement d'un niveau) avec `GC.Collect(0)`, où la pause ne se voit pas.
+- **Collecter aux transitions** avec `GC.Collect(0)`, sous un écran de transition opaque, où la pause ne se voit pas (Sokoban World : au retour à la carte seulement ; l'ouverture d'un niveau doit rester instantanée).
 - **Mesurer** : avec `FrameDiagnostics`, la ligne `[FrameStats]` donne les octets alloués par image sur le fil d'interface, et chaque à-coup produit une ligne `[FrameSpike]` (mise à jour, enregistrement, `FrameAdvanced`, reste hors moteur, passages du ramasse-miettes par génération).
 
 Résultat dans Sokoban World : de 5,8 à 3,5 Kio alloués par image sur la carte, et des à-coups de 50 à 60 ms environ 6 fois par minute à un seul de 44 ms en 45 s de défilement (sans collecte), aucun en jeu sur le plateau.
+
+## Transitions sans à-coup (13 novembre 2026)
+
+Règles tirées de Sokoban World (mesures dans son dépôt : `documents/claude-instructions/tasks/2026-11-11-personnages-fluides.md`), et de l'analyse du code de Godot (`documents/claude-instructions/architecture/2026-11-12-godot-a-coups.md`).
+
+1. **Préparer pendant les temps morts, pas au moment de l'affichage.** Le décor statique d'une scène coûteuse (cache plein écran, bandes de décor) se construit sur un fil de fond pendant ce que le joueur regarde déjà : déplacement du héros vers une étape, partie en cours pour la suivante, écran de chargement. Au premier rendu, la scène adopte le décor préparé s'il correspond exactement au cadrage, sinon elle construit le sien. Le cadrage et la construction doivent être des fonctions sans état de la scène, avec des pinceaux propres au fil de fond. Limiter le nombre de scènes préparées (mémoire) et libérer les plus anciennes sans bloquer le fil d'interface.
+2. **Attendre des images réellement affichées.** `GameCanvasView.PresentedFrames` compte les images dessinées à l'écran (relecture par la carte graphique, ou rendu processeur) ; il diffère des tics de la boucle au démarrage, quand la surface de la carte graphique met plusieurs centaines de millisecondes à apparaître. Un écran de transition ne se retire qu'après N images réellement affichées.
+3. **Masquer le reste par un écran de transition opaque** (carte d'étape, rideau) : le travail inévitable (changement de panneaux, collecte du ramasse-miettes, reconstruction) se fait pendant qu'il couvre tout l'écran, puis l'animation de sortie dévoile la nouvelle scène.
+4. **Éliminer les coûts de première utilisation.** Sur Android, compiler l'application en Release avec `AndroidEnableProfiledAot=false` (précompilation complète) : sinon le premier usage d'un chemin de code (premier geste, première mise en page) est compilé à la volée et coûte 30 à 45 ms. Coût : APK plus gros (+11,6 Mo dans Sokoban World) et compilation plus longue.
+5. **Animations qui tournent pendant un blocage** : seules les animations confiées au système (vecteur animé Android sur son fil de rendu, Core Animation sur iOS) continuent pendant que le fil d'interface est occupé ; une animation MAUI ou Skia se fige.
